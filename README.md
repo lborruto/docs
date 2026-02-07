@@ -4,13 +4,9 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->11<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->10<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
-## llms
-
-* [Running OpenClaw in Docker](https://github.com/lborruto/docs/blob/main/llms/openclaw-docker.md) - 2026-02-01
-
 ## homelab
 
 * [Radarr and Sonarr in Docker](https://github.com/lborruto/docs/blob/main/homelab/radarr-sonarr-docker.md) - 2026-02-07

@@ -1,8 +1,8 @@
 # FormD T1 V2.1 SFF Build
 
-![FormD T1 V2.1](https://i.imgur.com/Zpf1zas.jpeg)
-
 Compact small-form-factor gaming PC built following the [Eiga Works FormD T1 5090 Air guide](https://eigaworks.com/builds/formd-t1-5090-air/).
+
+![FormD T1 V2.1](https://i.imgur.com/Zpf1zas.jpeg)
 
 ## Parts List
 

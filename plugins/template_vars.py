@@ -20,27 +20,10 @@ def highlight(s):
 
 @hookimpl
 def extra_template_vars(request, datasette):
-    async def related_tils(til):
-        path = til["path"]
-        sql = """
-        select
-          til.topic, til.slug, til.title, til.created
-        from til
-          join similarities on til.path = similarities.other_id
-        where similarities.id = :path
-        order by similarities.score desc limit 10
-        """
-        result = await datasette.get_database().execute(
-            sql,
-            {"path": til["path"]},
-        )
-        return result.rows
-
     return {
         "q": request.args.get("q", ""),
         "highlight": highlight,
         "first_paragraph": first_paragraph,
-        "related_tils": related_tils,
     }
 
 

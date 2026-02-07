@@ -2,9 +2,12 @@
 
 A collection of concise write-ups on small things I learn day to day. Powered by [Datasette](https://datasette.io/) and deployed automatically via GitHub Actions.
 
-<!-- count starts -->0<!-- count ends --> TILs so far. <a href="https://til.simonwillison.net/til/feed.atom">Atom feed here</a>.
+<!-- count starts -->1<!-- count ends --> TILs so far. <a href="https://til.simonwillison.net/til/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
+## llms
+
+* [Running OpenClaw in Docker](https://github.com/simonw/til/blob/main/llms/openclaw-docker.md) - 2026-02-01
 <!-- index ends -->
 
 ---

@@ -15,8 +15,8 @@ adguardhome:
     - 80:80/tcp
     - 3000:3000/tcp
   volumes:
-    - ./conf:/opt/adguardhome/conf
-    - ./work:/opt/adguardhome/work
+    - /app-config/adguardhome/conf:/opt/adguardhome/conf
+    - /app-config/adguardhome/work:/opt/adguardhome/work
 ```
 
 ## Web UI
@@ -36,4 +36,5 @@ Set the router's DHCP DNS server to `192.168.0.15` so all devices on the network
 
 ## Volume Paths
 
-The config uses relative paths (`./conf` and `./work`) which resolve to `/app-config/conf/` and `/app-config/work/` since the compose file is in `/app-config/`.
+- `/app-config/adguardhome/conf` -- configuration files
+- `/app-config/adguardhome/work` -- runtime data

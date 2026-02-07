@@ -1,12 +1,7 @@
 title: Today I Learned
-about: simonw/til
-about_url: https://github.com/simonw/til
+about: lborruto/docs
+about_url: https://github.com/lborruto/docs
 plugins:
-  datasette-redirects:
-    301:
-      /python/uv-tests: /uv/uv-tests
-      /python/uv-cli-apps: /uv/uv-cli-apps
-      /pytest/pytest-uv: /uv/pytest-uv
   datasette-graphql:
     path: /-/graphql
   datasette-atom:
@@ -38,16 +33,14 @@ databases:
         order by
           til_fts.rank limit 40
       feed:
-        title: Simon Willison TIL
+        title: TIL
         sql: |-
           SELECT
-            'tag:til.simonwillison.net,2020-04-30:' || path as atom_id,
+            'tag:docs.luca-borruto.com,' || path as atom_id,
             title as atom_title,
-            'https://til.simonwillison.net/' || topic || '/' || slug as atom_link,
+            'https://docs.luca-borruto.com/' || topic || '/' || slug as atom_link,
             created_utc as atom_updated,
-            html as atom_content_html,
-            'Simon Willison' as atom_author_name,
-            'https://simonwillison.net/' as atom_author_uri
+            html as atom_content_html
           FROM
             til
           order by
@@ -55,16 +48,14 @@ databases:
           limit
             15
       feed_by_topic:
-        title: Simon Willison TIL for topic
+        title: TIL by topic
         sql: |-
           SELECT
-            'tag:til.simonwillison.net,2020-04-30:' || path as atom_id,
+            'tag:docs.luca-borruto.com,' || path as atom_id,
             title as atom_title,
-            'https://til.simonwillison.net/' || topic || '/' || slug as atom_link,
+            'https://docs.luca-borruto.com/' || topic || '/' || slug as atom_link,
             created_utc as atom_updated,
-            html as atom_content_html,
-            'Simon Willison' as atom_author_name,
-            'https://simonwillison.net/' as atom_author_uri
+            html as atom_content_html
           FROM
             til
           where

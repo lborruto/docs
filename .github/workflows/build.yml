@@ -1,4 +1,4 @@
-name: Build README and deploy to GitHub Pages
+name: Build README and deploy Datasette
 
 on:
   push:
@@ -7,12 +7,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -54,25 +48,23 @@ jobs:
         git diff --quiet || (git add README.md && git commit -m "Updated README")
         git pull --rebase
         git push
-    - name: Setup Pages
-      uses: actions/configure-pages@v5
-    - name: Build with Jekyll
-      uses: actions/jekyll-build-pages@v1
-      with:
-        source: .
-        destination: ./_site
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: ./_site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+    - name: Install Fly
+      run: curl -L https://fly.io/install.sh | sh
+    - name: Deploy Datasette using Fly
+      env:
+        FLY_API_TOKEN: ${{ secrets.FLY_TOKEN }}
+      run: |-
+        PATH=$PATH:/home/runner/.fly/bin/ datasette publish fly tils.db \
+          --app ${{ vars.FLY_APP_NAME }} \
+          --metadata metadata.yaml \
+          --static static:static \
+          --install datasette-template-sql \
+          --install "datasette-sitemap>=1.0" \
+          --install "datasette-atom>=0.7" \
+          --install datasette-json-html \
+          --install beautifulsoup4 \
+          --install "datasette-graphql>=2.2" \
+          --install datasette-block-robots \
+          --plugins-dir plugins \
+          --template-dir templates \
+          --setting allow_facet off

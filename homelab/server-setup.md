@@ -24,8 +24,8 @@ Debian 12 (Bookworm), kernel 6.1.0-41-amd64.
   radarr/config/
   sonarr/config/
   tautulli/
-  conf/                       # AdGuard Home config
-  work/                       # AdGuard Home work dir
+  adguardhome/conf/           # AdGuard Home config
+  adguardhome/work/           # AdGuard Home work dir
 
 /data/                        # All media and downloads
   media/

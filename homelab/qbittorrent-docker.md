@@ -26,7 +26,7 @@ qbittorrent:
 
 ## Web UI
 
-`http://192.168.0.15:8080`
+`http://homelab.local:8080`
 
 Default credentials on first launch are printed in the container logs (`docker logs qbittorrent`).
 

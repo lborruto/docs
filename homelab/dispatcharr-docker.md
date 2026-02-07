@@ -25,7 +25,7 @@ dispatcharr:
 
 ## Web UI
 
-`http://192.168.0.15:9191`
+`http://homelab.local:9191`
 
 ## Key Configuration
 

@@ -33,8 +33,8 @@ byparr:
 
 ## Web UIs
 
-- Jackett: `http://192.168.0.15:9117`
-- Byparr: `http://192.168.0.15:8191` (API only)
+- Jackett: `http://homelab.local:9117`
+- Byparr: `http://homelab.local:8191` (API only)
 
 ## How It Works
 

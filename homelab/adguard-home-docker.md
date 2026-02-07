@@ -21,8 +21,8 @@ adguardhome:
 
 ## Web UI
 
-- Setup wizard (first run): `http://192.168.0.15:3000`
-- Admin panel (after setup): `http://192.168.0.15:80`
+- Setup wizard (first run): `http://homelab.local:3000`
+- Admin panel (after setup): `http://homelab.local`
 
 ## Ports
 

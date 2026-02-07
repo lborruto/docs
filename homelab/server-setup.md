@@ -18,14 +18,14 @@ Debian 12 (Bookworm), kernel 6.1.0-41-amd64.
 ```
 /app-config/                  # All container configs
   docker-compose.yaml         # Single compose file for everything
-  jackett/config/
-  plex/config/
-  qbittorrent/config/
-  radarr/config/
-  sonarr/config/
+  jackett/
+  plex/
+  qbittorrent/
+  radarr/
+  sonarr/
   tautulli/
-  adguardhome/conf/           # AdGuard Home config
-  adguardhome/work/           # AdGuard Home work dir
+  adguardhome/
+  adguardhome/
 
 /data/                        # All media and downloads
   media/
@@ -40,6 +40,7 @@ All services run from a single `docker-compose.yaml` in `/app-config/`. Everythi
 ## Network
 
 - **LAN IP:** `192.168.0.15`
+- **Local hostname:** `homelab.local` (via AdGuard Home DNS rewrite)
 - **Remote access:** Twingate connector (zero-trust, no port forwarding needed)
 - **DNS:** AdGuard Home on port 53, with web UI on port 3000
 

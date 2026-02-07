@@ -73,8 +73,8 @@ jobs:
           --setting allow_facet off \
           --generate-dir /tmp/datasette-publish
 
-        # Set primary region to Paris
-        sed -i 's/^primary_region = .*/primary_region = "cdg"/' /tmp/datasette-publish/fly.toml
+        # Add primary region (Paris) after the app line
+        sed -i '/^app = /a primary_region = "cdg"' /tmp/datasette-publish/fly.toml
 
         # Deploy from the generated directory
         cd /tmp/datasette-publish

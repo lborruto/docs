@@ -36,8 +36,8 @@ sonarr:
 
 ## Web UIs
 
-- Radarr: `http://homelab.local:7878`
-- Sonarr: `http://homelab.local:8989`
+- Radarr: `http://homelab.internal:7878`
+- Sonarr: `http://homelab.internal:8989`
 
 ## The `/data` Volume Trick
 

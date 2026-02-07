@@ -40,7 +40,7 @@ All services run from a single `docker-compose.yaml` in `/app-config/`. Everythi
 ## Network
 
 - **LAN IP:** `192.168.0.15`
-- **Local hostname:** `homelab.local` (via AdGuard Home DNS rewrite)
+- **Local hostname:** `homelab.internal` (via AdGuard Home DNS rewrite)
 - **Remote access:** Twingate connector (zero-trust, no port forwarding needed)
 - **DNS:** AdGuard Home on port 53, with web UI on port 3000
 

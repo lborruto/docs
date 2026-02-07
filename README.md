@@ -4,7 +4,7 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->10<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->11<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
 ## homelab
@@ -19,6 +19,10 @@ Search these TILs at https://docs.luca-borruto.com/
 * [qBittorrent in Docker](https://github.com/lborruto/docs/blob/main/homelab/qbittorrent-docker.md) - 2026-02-07
 * [AdGuard Home in Docker](https://github.com/lborruto/docs/blob/main/homelab/adguard-home-docker.md) - 2026-02-07
 * [Dispatcharr in Docker](https://github.com/lborruto/docs/blob/main/homelab/dispatcharr-docker.md) - 2026-02-07
+
+## pc
+
+* [FormD T1 V2.1 SFF Build](https://github.com/lborruto/docs/blob/main/pc/formd-t1-build.md) - 2026-02-07
 <!-- index ends -->
 
 ---

@@ -31,6 +31,7 @@ Compact small-form-factor gaming PC built following the [Eiga Works FormD T1 509
 
 This build follows the Eiga guide which targets the RTX 5090 FE, but uses an **RTX 5080 FE** instead. The assembly process is identical since both cards share the same Founders Edition dual-slot cooler design. Same screws as the guide.
 
+- [Index](https://eigaworks.com/builds/formd-t1-5090-air/)
 - [Prep](https://eigaworks.com/builds/formd-t1-5090-air/prep/)
 - [Assembly](https://eigaworks.com/builds/formd-t1-5090-air/assembly/)
 - [Software Setup](https://eigaworks.com/builds/formd-t1-5090-air/setup/)

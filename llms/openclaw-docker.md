@@ -1,7 +1,5 @@
 # Running OpenClaw in Docker
 
-I'm not brave enough to run [OpenClaw](https://openclaw.ai/) (aka Clawdbot aka Moltbot) directly on my Mac, so I decided to try running it in a Docker instead container.
-
 OpenClaw has Docker support out of the box, described [on this page](https://docs.openclaw.ai/install/docker) of their documentation. Here's what worked for me.
 
 ## Use their Docker Compose configuration
@@ -11,6 +9,7 @@ First, clone their GitHub repository:
 ```bash
 git clone https://github.com/openclaw/openclaw
 ```
+
 It contains a script for running OpenClaw in Docker called [docker-setup.sh](https://github.com/openclaw/openclaw/blob/main/docker-setup.sh) which in turn uses Docker Compose and their [docker-compose.yml](https://github.com/openclaw/openclaw/blob/main/docker-compose.yml) file.
 
 The script will create two folders directly on your Mac which will then be mounted as volumes in the Docker container:
@@ -93,6 +92,7 @@ Pending (1)
 │                                      │ aafc8be8058bea8a06be1cb7bfad9b3   │          │            │        │        │
 └──────────────────────────────────────┴───────────────────────────────────┴──────────┴────────────┴────────┴────────┘
 ```
+
 To approve that, run this command:
 
     docker compose exec openclaw-gateway \

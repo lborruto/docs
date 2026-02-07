@@ -30,9 +30,25 @@ adguardhome:
 - **80** -- Admin web interface
 - **3000** -- Initial setup wizard (also kept open for alternative access)
 
+## DNS Configuration
+
+- **Upstream DNS:** `1.1.1.1` (Cloudflare)
+- **Fallback DNS:** `1.0.0.1` (Cloudflare)
+
+## Blocklists
+
+Removed the default blocklist. Using [Hagezi](https://github.com/hagezi/dns-blocklists) lists instead:
+
+- `https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.txt`
+- `https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt`
+
+## DNS Rewrites
+
+- `homelab.internal` -> `192.168.x.xx`
+
 ## Network Setup
 
-Set the router's DHCP DNS server to `serverip` so all devices on the network automatically use AdGuard Home for DNS. This blocks ads network-wide without installing anything on individual devices.
+Set the router's DHCP DNS server to the server's IP so all devices on the network automatically use AdGuard Home for DNS. This blocks ads network-wide without installing anything on individual devices.
 
 ## Volume Paths
 

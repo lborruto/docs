@@ -53,3 +53,7 @@ http://serverip:8191
 ```
 
 This works because both containers are on the same Docker network.
+
+## Tracker
+
+Primary tracker is **YGG Torrent** -- configured as an indexer in Jackett. Byparr is needed because YGG uses Cloudflare protection.

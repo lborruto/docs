@@ -48,6 +48,14 @@ All services run from a single `docker-compose.yaml` in `/app-config/`. Everythi
 
 [Watchtower](https://containrrr.dev/watchtower/) auto-updates all containers daily at 02:00 and cleans up old images.
 
+### Cronitor Jobs
+
+Two scripts monitored by [Cronitor](https://cronitor.io/):
+
+- **`/usr/local/bin/disk_full.sh`** -- if `/dev/sda1` goes above 90% capacity, clears `/data/torrents/downloads/` and restarts qBittorrent
+- **`/usr/local/bin/check.sh`** -- heartbeat ping to confirm the server is alive
+
+
 ## Running Services
 
 | Service | Port | Purpose |

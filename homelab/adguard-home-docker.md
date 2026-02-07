@@ -32,7 +32,7 @@ adguardhome:
 
 ## Network Setup
 
-Set the router's DHCP DNS server to `192.168.0.15` so all devices on the network automatically use AdGuard Home for DNS. This blocks ads network-wide without installing anything on individual devices.
+Set the router's DHCP DNS server to `serverip` so all devices on the network automatically use AdGuard Home for DNS. This blocks ads network-wide without installing anything on individual devices.
 
 ## Volume Paths
 

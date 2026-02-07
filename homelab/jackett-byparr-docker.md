@@ -49,7 +49,7 @@ byparr:
 In Jackett's settings, set the FlareSolverr API URL to:
 
 ```
-http://byparr:8191
+http://serverip:8191
 ```
 
 This works because both containers are on the same Docker network.

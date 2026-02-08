@@ -4,7 +4,7 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->12<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->13<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
 ## homelab
@@ -27,6 +27,10 @@ Search these TILs at https://docs.luca-borruto.com/
 ## keyboards
 
 * [Custom Mechanical Keyboards](https://github.com/lborruto/docs/blob/main/keyboards/custom-keyboards.md) - 2026-02-08
+
+## links
+
+* [Useful Links](https://github.com/lborruto/docs/blob/main/links/useful-links.md) - 2026-02-08
 <!-- index ends -->
 
 ---

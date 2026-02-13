@@ -9,16 +9,16 @@ Search these TILs at https://docs.luca-borruto.com/
 <!-- index starts -->
 ## homelab
 
-* [Radarr and Sonarr in Docker](https://github.com/lborruto/docs/blob/main/homelab/radarr-sonarr-docker.md) - 2026-02-07
-* [Plex Media Server in Docker](https://github.com/lborruto/docs/blob/main/homelab/plex-docker.md) - 2026-02-07
 * [Tautulli in Docker](https://github.com/lborruto/docs/blob/main/homelab/tautulli-docker.md) - 2026-02-07
+* [Plex Media Server in Docker](https://github.com/lborruto/docs/blob/main/homelab/plex-docker.md) - 2026-02-07
+* [Jackett and Byparr in Docker](https://github.com/lborruto/docs/blob/main/homelab/jackett-byparr-docker.md) - 2026-02-07
+* [Radarr and Sonarr in Docker](https://github.com/lborruto/docs/blob/main/homelab/radarr-sonarr-docker.md) - 2026-02-07
 * [Home Server Setup](https://github.com/lborruto/docs/blob/main/homelab/server-setup.md) - 2026-02-07
 * [Watchtower in Docker](https://github.com/lborruto/docs/blob/main/homelab/watchtower-docker.md) - 2026-02-07
 * [Twingate in Docker](https://github.com/lborruto/docs/blob/main/homelab/twingate-docker.md) - 2026-02-07
-* [Jackett and Byparr in Docker](https://github.com/lborruto/docs/blob/main/homelab/jackett-byparr-docker.md) - 2026-02-07
 * [qBittorrent in Docker](https://github.com/lborruto/docs/blob/main/homelab/qbittorrent-docker.md) - 2026-02-07
-* [AdGuard Home in Docker](https://github.com/lborruto/docs/blob/main/homelab/adguard-home-docker.md) - 2026-02-07
 * [Dispatcharr in Docker](https://github.com/lborruto/docs/blob/main/homelab/dispatcharr-docker.md) - 2026-02-07
+* [AdGuard Home in Docker](https://github.com/lborruto/docs/blob/main/homelab/adguard-home-docker.md) - 2026-02-07
 
 ## pc
 

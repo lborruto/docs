@@ -26,7 +26,7 @@ Compact small-form-factor gaming PC built following the [Eiga Works FormD T1 509
 | Cables | Custom Black Teflon cables from [CablesterCustom](https://www.etsy.com/shop/CablesterCustom) (24P 170mm, CPU 8P 290mm, GPU 12V2X6 300mm) |
 | Screws | 12x M3 flat head 4mm, 16x M3 countersunk 5mm, 11x M3 countersunk 8mm |
 
-[PCPartPicker list](https://fr.pcpartpicker.com/list/w2PFfp)
+[PCPartPicker list](https://fr.pcpartpicker.com/list/HMfNQy)
 
 ## Build Guide
 
@@ -139,6 +139,37 @@ GPU fans left on **Auto** (firmware control). FanControl and MSI Afterburner bot
 | **Package Power avg** | 108W | 84.7W | **-23.3W** |
 | **Core Clock avg** | -- | 5064 MHz | Boosting freely |
 | **PPT Used** | -- | 52% | Nowhere near limit |
+
+### 3DMark Time Spy
+*Run details: [3dmark](https://www.3dmark.com/3dm/155416414)*
+
+| Metric | Score |
+|---|---|
+| **Overall** | **27,511** |
+| Graphics | 31,888 |
+| CPU | 15,476 |
+
+**GPU** (950mV undervolt + 1000 memory):
+ 
+| Metric | Avg | Max |
+|---|---|---|
+| GPU Clock | 2727 MHz | 2805 MHz |
+| GPU Temp | 61.4°C | 67.7°C |
+| VRAM Temp | 64.5°C | 72.0°C |
+| GPU Power | 274.6W | 326.4W |
+| TDP Used | 76.8% | 91.0% |
+| Fan Speed | 40% | 43% |
+ 
+**CPU** (CO -20, 85°C thermal limit):
+ 
+| Metric | Avg | Max |
+|---|---|---|
+| Core Clock | 4678 MHz | 5225 MHz |
+| CPU Temp | 69.5°C | 86.5°C |
+| Package Power | 60.5W | 110.4W |
+| PPT Used | 37.3% | 68.2% |
+
+Graphics score of 31,888 is within the normal range for a stock RTX 5080 FE (30,229-32,642 per reviews), confirming the 950mV undervolt has no performance penalty in 3DMark. CPU barely breaks a sweat at 69.5°C average.
 
 ### Summary
 

@@ -32,6 +32,11 @@ A collection of useful tools, resources, and references.
 - [lazydocker](https://github.com/jesseduffield/lazydocker) -- terminal UI for Docker management
 - [btop](https://github.com/aristocratos/btop) -- resource monitor (CPU, memory, disks, network)
 
+## Web Scraping
+
+- [DataImpulse](https://dataimpulse.com/) -- residential proxies at $1/GB, billing on compressed data (actual cost is even lower)
+- [Scrape.do](https://scrape.do/) -- cheapest scraper API I could find, handles anti-bot bypass (Akamai, Cloudflare, AWS WAF)
+
 ## Privacy
 
 - [10 Minute Mail](https://10minutemail.net/) -- disposable temporary email

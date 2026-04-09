@@ -51,9 +51,9 @@ resp = session.get("https://target.example.com/page")
 
 Important: `__cf_bm` is the critical cookie -- Cloudflare rejects requests without it. It is **not IP-bound**, so cookies solved from one IP work across different proxy IPs.
 
-## Solving Challenges with FlareSolverr / Byparr
+## Solving Challenges with Byparr
 
-[Byparr](https://github.com/ThePhaseless/Byparr) runs a [Camoufox](https://github.com/nichochar/camoufox) stealth browser (Firefox-based, anti-fingerprint) that solves Cloudflare JS challenges and Turnstile. It exposes a FlareSolverr-compatible API.
+[Byparr](https://github.com/ThePhaseless/Byparr) runs a [Camoufox](https://github.com/nichochar/camoufox) stealth browser (Firefox-based, anti-fingerprint) that solves Cloudflare JS challenges and Turnstile.
 
 ### Docker Setup
 

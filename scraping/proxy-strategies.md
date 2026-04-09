@@ -56,7 +56,7 @@ If you need French IPs, be aware of a structural limitation:
 - **All French ISP proxies are Orange** -- every provider delivers IPs on AS5511/AS3215. Free (AS12322), SFR (AS15557), Bouygues (AS5410) don't participate in IP-leasing markets.
 - **0% residential classification** on IP2Location -- the IPs are technically ISP IPs but classified as hosting/proxy.
 - **Single-ASN correlation** -- anti-bot systems detect that all your IPs share the same ASN. We hit a ceiling of ~100-150 requests before blocks cascaded.
-- **Confirmed by providers** -- Murphy Proxies (French boutique): "en FR, c'est impossible d'avoir des IPs categorisees ISP" on IP2Location.
+- **Confirmed by providers** -- a French proxy provider told us: "en FR, c'est impossible d'avoir des IPs categorisees ISP" on IP2Location.
 
 Rotating residential proxies avoid this entirely: each request is a different IP from a different ASN.
 

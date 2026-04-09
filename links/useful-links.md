@@ -16,6 +16,7 @@ A collection of useful tools, resources, and references.
 - [SteamAutoCracker](https://github.com/BigBoiCJ/SteamAutoCracker) -- automatic Steam DRM removal tool
 - [FitGirl Repacks](https://fitgirl-repacks.site/) -- compressed game repacks
 - [GOG Games](https://gog-games.to/) -- DRM-free GOG game library
+- [c411](https://c411.org/) -- French torrent tracker
 
 ## Streaming
 

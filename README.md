@@ -4,7 +4,7 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->12<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->16<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
 ## homelab
@@ -23,6 +23,13 @@ Search these TILs at https://docs.luca-borruto.com/
 ## pc
 
 * [FormD T1 V2.1 SFF Build](https://github.com/lborruto/docs/blob/main/pc/formd-t1-build.md) - 2026-02-07
+
+## scraping
+
+* [Bypassing Akamai Bot Manager with curl_cffi](https://github.com/lborruto/docs/blob/main/scraping/bypassing-akamai.md) - 2026-04-09
+* [Bypassing Cloudflare with curl_cffi and Cookie Management](https://github.com/lborruto/docs/blob/main/scraping/bypassing-cloudflare.md) - 2026-04-09
+* [Bypassing AWS WAF with Proof-of-Work Token Generation](https://github.com/lborruto/docs/blob/main/scraping/bypassing-aws-waf.md) - 2026-04-09
+* [Proxy Strategies for Web Scraping](https://github.com/lborruto/docs/blob/main/scraping/proxy-strategies.md) - 2026-04-09
 
 ## links
 

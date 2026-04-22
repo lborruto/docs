@@ -1,20 +1,70 @@
 # jackstream in Docker
 
-Self-hosted Stremio addon that queries my Jackett and streams torrents via an embedded WebTorrent client. No debrid, no qBittorrent, no shared volume. One container.
+Self-hosted Stremio addon that queries Jackett and streams torrents via an embedded WebTorrent client. No debrid, no qBittorrent, no shared volume. One container, zero persistent storage.
 
 Source: <https://github.com/lborruto/jackstream>
 
 ## Why build this
 
-My Plex + Radarr / Sonarr stack downloads what I know I want. For everything else I wanted torrent streaming **directly inside Stremio**, on any device on the LAN, without:
+Stremio + Jackett + WebTorrent is the right stack for a homelab that wants torrent streaming **inside Stremio**, on any device on the LAN, without:
 
-- Debrid accounts ($)
-- qBittorrent running alongside (needs a shared volume for the `.torrent` download path)
-- Rewriting trackers for each addon
+- Debrid accounts (monthly fee, third-party dependency)
+- qBittorrent running alongside (needs a shared volume for the `.torrent` download path, and its own credential juggling for private trackers)
+- Rewriting each private tracker's auth into every addon
 
-jackstream takes the IMDB id Stremio sends, asks my Jackett for torrents, and streams them via WebTorrent. Because Jackett proxies the `.torrent` URL (with passkeys for private trackers already embedded in the announce URLs), WebTorrent can connect to private trackers out of the box — no cookies or credentials to juggle.
+jackstream takes the IMDB id Stremio sends, asks the local Jackett for torrents, and streams them via WebTorrent. Because Jackett proxies the `.torrent` URL (with passkeys for private trackers embedded in the announce URLs), WebTorrent connects to private trackers out of the box — no cookies to manage.
 
-## Docker Compose
+## How it works
+
+```
+Stremio app
+    │ GET /{config}/manifest.json
+    │ GET /{config}/stream/{type}/{id}.json
+    ▼
+[Express + Stremio addon]
+    │
+    ├─ Resolve IMDB id → titles via TMDB (24 h cache)
+    ├─ Search Jackett in parallel across title variants
+    ├─ Parse + sort torrents (quality > source > hdr > seeders)
+    └─ Return streams pointing back to /stream/{config}/{torrentId}/{fileIdx}
+
+    │ GET /stream/:config/:torrentId/:fileIdx
+    ▼
+[WebTorrent singleton]
+    │
+    ├─ Download .torrent via Jackett (with passkeys)
+    ├─ Sequential priority, critical first pieces
+    ├─ Wait for STREAM_READY_MB then serve with Range support
+    └─ Clean up idle torrents, respect maxConcurrentTorrents
+```
+
+### Key architectural choices
+
+- **Zero server-side storage.** Credentials (Jackett + TMDB API keys) are base64url-encoded into the addon URL itself. Each Stremio install has its own URL; the server persists nothing. Container restart, container destroy — doesn't matter, nothing is lost (and nothing can be leaked from disk).
+- **No persistent volume.** Torrent pieces live in `/tmp/webtorrent` inside the container. When a torrent is idle for `TORRENT_IDLE_TIMEOUT_MIN` minutes (default 30), it and its downloaded pieces are destroyed.
+- **DHT / LSD / µTP all disabled.** DHT/LSD would leak private-tracker infohashes to the public swarm — bannable offence on most trackers. µTP is disabled because `utp-native`'s prebuilt binary segfaults Node.js under load; TCP-only peer connections work fine.
+- **Sequential + critical-piece streaming.** WebTorrent v2 removed its `strategy: 'sequential'` option; the replacement is manual: `torrent.files.forEach(f => f.deselect())` → `file.select()` → `torrent.critical(0, 5)`.
+
+### HTTPS without a reverse proxy
+
+Stremio's Windows desktop client rewrites `http://` → `https://` before fetching the manifest, which kills plain-HTTP installs from LAN IPs. The usual answers all have drawbacks:
+
+- Real domain + reverse proxy: overkill for a LAN-only addon
+- mkcert + root CA on every Stremio device: painful on TVs
+- Self-signed cert: "invalid certificate" popups forever
+
+jackstream bundles a cert + key from [`local-ip.medicmobile.org`](https://local-ip.medicmobile.org) — a community service that:
+
+1. Issues a **publicly-trusted Let's Encrypt wildcard cert** for `*.local-ip.medicmobile.org` (and publishes the private key, by design).
+2. Runs a DNS server where `192-168-0-15.local-ip.medicmobile.org` resolves to `192.168.0.15`.
+
+The addon listens on HTTPS 7001 with that cert, and the configure page auto-transforms a LAN IP (e.g. `192.168.0.15`) into the magic hostname (`https://192-168-0-15.local-ip.medicmobile.org:7001`). Browsers and Stremio both see a valid cert; traffic never leaves the LAN. Zero device-side setup.
+
+Tradeoff: anyone with DNS control on the network could MITM (public private key). On a trusted home LAN it's a non-issue. Not suitable for exposing to the public internet — use a real reverse proxy (Caddy/Nginx/Traefik with Let's Encrypt) for that case.
+
+## How to deploy
+
+### 1. Docker Compose
 
 ```yaml
 jackstream:
@@ -26,51 +76,37 @@ jackstream:
   restart: unless-stopped
 ```
 
-Then open `http://<server-ip>:7000/configure`, paste in my Jackett URL + API key, a free TMDB API key, and the server's LAN IP. The install button generates a `stremio://` deep link that launches the native Stremio app.
+Multi-arch (amd64 + arm64), so the same image runs on x86 homelabs and Raspberry Pi.
 
-## The HTTPS problem — and solution
+### 2. Open the configure page
 
-Stremio's Windows desktop client rewrites `http://` → `https://` before fetching the manifest, which kills plain-HTTP installs from LAN IPs. Options are all bad:
-
-- Real domain + reverse proxy: overkill for a LAN-only addon
-- mkcert + root CA on every Stremio device: painful on TVs
-- Self-signed cert: "invalid certificate" popups forever
-
-The trick I borrowed from [`nyakaspeter/stremio-torrent-stream`](https://github.com/nyakaspeter/stremio-torrent-stream) is [`local-ip.medicmobile.org`](https://local-ip.medicmobile.org) — a community service that:
-
-1. Issues a **publicly-trusted Let's Encrypt wildcard cert** for `*.local-ip.medicmobile.org` (and publishes the private key, by design).
-2. Runs a DNS server where `192-168-0-15.local-ip.medicmobile.org` resolves to `192.168.0.15`.
-
-So I bundle the cert + key in the Docker image, listen on 7001 with HTTPS, and the configure page auto-transforms my LAN IP into the magic hostname. Browsers and Stremio both see a valid cert, traffic never leaves the LAN. Zero device-side setup.
-
-Tradeoff: anyone with DNS control on my network could MITM (public private key). On a trusted home LAN it's a non-issue. Not suitable for exposing to the internet.
-
-## Key architectural choices
-
-- **Zero server-side storage.** Credentials (Jackett + TMDB keys) are base64url-encoded into the addon URL. Each Stremio install has its own URL; the server stores nothing.
-- **No persistent volume.** Torrents live in `/tmp/webtorrent` inside the container. When a torrent is idle for `TORRENT_IDLE_TIMEOUT_MIN` (30 min default), it and its downloaded pieces are destroyed.
-- **DHT / LSD / µTP all disabled.** DHT would leak private-tracker infohashes to the public swarm. µTP is disabled because `utp-native` was segfaulting the Node.js process — TCP-only peer connections work fine for private trackers.
-- **Sequential + critical-piece streaming.** WebTorrent v2 removed its `strategy: 'sequential'` option; the replacement is manual: `torrent.files.forEach(f => f.deselect())` → `file.select()` → `torrent.critical(0, 5)`.
-
-## Gotchas I hit
-
-- **QEMU cross-build from an M-series Mac ran fine** for amd64, but any native module segfault on the target would have been mistaken for a "cross-build bug". Disabling µTP was the real fix — `utp-native`'s prebuilt linux-x64 binary crashes under load.
-- **Exit code 139 = SIGSEGV.** With `restart: unless-stopped`, the container auto-restarted on crash, which wiped the in-memory torrent store, which surfaced as "Stream session expired" on the user side. The root cause was invisible until I pulled `docker events`.
-- **Stremio's `stremio://host:port/...` deep link.** Some clients handle the port, some strip it. Configure page shows the HTTPS URL as a paste-fallback so I can always manually add it in Stremio's "Add-on Repository URL" field.
-- **Stremio Web (`web.stremio.com`) won't load plain-HTTP addons** due to mixed-content rules. Only a problem if I use the web client — native Stremio apps are fine on HTTP for localhost, and HTTPS (via the trick above) for LAN IPs.
-
-## How I configured it
+From any device on the LAN:
 
 ```
-Jackett URL:      http://<server-ip>:9117
-Jackett API key:  <from Jackett settings page>
-TMDB API key:     <free from themoviedb.org/settings/api>
-Addon LAN IP:     <my server's LAN IP>
-Advanced filters: preferred language = FRENCH, blacklist = CAM, HDCAM, TELESYNC
+http://<server-ip>:7000/configure
 ```
 
-The form persists in `localStorage`, so reloading `/configure` repopulates everything.
+Fill in:
 
-## Syncing to LG TV
+- **Jackett URL** (e.g. `http://<server-ip>:9117`) and its API key.
+- **TMDB API key** (free at [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api)).
+- **Addon public URL / LAN IP** — just the server's LAN IP. The page auto-converts it to the HTTPS hostname.
 
-Typing a 400-character URL on a TV remote is cruel. Stremio has cloud sync — installing the addon once on desktop while signed in to a Stremio account pushes it to every other device signed in to that account, including the TV. Zero typing.
+Use **Test Jackett** / **Test TMDB** to verify credentials live before installing.
+
+### 3. Install in Stremio
+
+Click **Install in Stremio** to launch the native Stremio app with the addon preconfigured. The HTTPS URL is also shown below the button — paste it into Stremio's *Add-on Repository URL* field on clients that don't handle `stremio://` deep links (some Windows builds, most TVs).
+
+For a TV or phone, the least painful path is a Stremio account: install once on desktop while signed in, and the addon syncs to every other signed-in client. No 400-character URL typing on a remote.
+
+### 4. Advanced filters (optional)
+
+Per-user filters that don't require redeploying:
+
+- Preferred audio language (sort boost — doesn't hide non-matches)
+- Min / max quality (hard filter)
+- Min / max file size (hard filter)
+- Blacklist keywords (e.g. `CAM, HDCAM, TELESYNC`)
+
+All filters live in the base64url-encoded URL, so different Stremio installs can use different filter profiles against the same backend.

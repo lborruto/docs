@@ -22,9 +22,9 @@ Search these TILs at https://docs.luca-borruto.com/
 * [Bypassing Cloudflare with curl_cffi and Cookie Management](https://github.com/lborruto/docs/blob/main/scraping/bypassing-cloudflare.md) - 2026-04-09
 * [Proxy Strategies for Web Scraping](https://github.com/lborruto/docs/blob/main/scraping/proxy-strategies.md) - 2026-04-09
 
-## homelab
+## addons
 
-* [jackstream in Docker](https://github.com/lborruto/docs/blob/main/homelab/jackstream-docker.md) - 2026-04-22
+* [jackstream in Docker](https://github.com/lborruto/docs/blob/main/addons/jackstream-docker.md) - 2026-04-22
 <!-- index ends -->
 
 ---

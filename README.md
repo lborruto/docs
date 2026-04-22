@@ -4,22 +4,9 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->16<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->7<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
-## homelab
-
-* [Twingate in Docker](https://github.com/lborruto/docs/blob/main/homelab/twingate-docker.md) - 2026-02-07
-* [Dispatcharr in Docker](https://github.com/lborruto/docs/blob/main/homelab/dispatcharr-docker.md) - 2026-02-07
-* [Jackett and Byparr in Docker](https://github.com/lborruto/docs/blob/main/homelab/jackett-byparr-docker.md) - 2026-02-07
-* [AdGuard Home in Docker](https://github.com/lborruto/docs/blob/main/homelab/adguard-home-docker.md) - 2026-02-07
-* [Home Server Setup](https://github.com/lborruto/docs/blob/main/homelab/server-setup.md) - 2026-02-07
-* [Plex Media Server in Docker](https://github.com/lborruto/docs/blob/main/homelab/plex-docker.md) - 2026-02-07
-* [qBittorrent in Docker](https://github.com/lborruto/docs/blob/main/homelab/qbittorrent-docker.md) - 2026-02-07
-* [Watchtower in Docker](https://github.com/lborruto/docs/blob/main/homelab/watchtower-docker.md) - 2026-02-07
-* [Tautulli in Docker](https://github.com/lborruto/docs/blob/main/homelab/tautulli-docker.md) - 2026-02-07
-* [Radarr and Sonarr in Docker](https://github.com/lborruto/docs/blob/main/homelab/radarr-sonarr-docker.md) - 2026-02-07
-
 ## pc
 
 * [FormD T1 V2.1 SFF Build](https://github.com/lborruto/docs/blob/main/pc/formd-t1-build.md) - 2026-02-07
@@ -34,6 +21,10 @@ Search these TILs at https://docs.luca-borruto.com/
 * [Bypassing AWS WAF with Proof-of-Work Token Generation](https://github.com/lborruto/docs/blob/main/scraping/bypassing-aws-waf.md) - 2026-04-09
 * [Bypassing Cloudflare with curl_cffi and Cookie Management](https://github.com/lborruto/docs/blob/main/scraping/bypassing-cloudflare.md) - 2026-04-09
 * [Proxy Strategies for Web Scraping](https://github.com/lborruto/docs/blob/main/scraping/proxy-strategies.md) - 2026-04-09
+
+## homelab
+
+* [jackstream in Docker](https://github.com/lborruto/docs/blob/main/homelab/jackstream-docker.md) - 2026-04-22
 <!-- index ends -->
 
 ---

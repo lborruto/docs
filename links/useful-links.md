@@ -15,6 +15,8 @@ A collection of useful tools, resources, and references.
 - [cs.rin.ru](https://cs.rin.ru/forum/viewforum.php?f=10) -- Steam Underground forum for game releases and discussions
 - [SteamAutoCracker](https://github.com/BigBoiCJ/SteamAutoCracker) -- automatic Steam DRM removal tool
 - [FitGirl Repacks](https://fitgirl-repacks.site/) -- compressed game repacks
+- [DODI Repacks](https://dodi-repacks.site/) -- compressed game repacks
+- [Byxatab](https://byxatab.com/) -- game downloads
 - [GOG Games](https://gog-games.to/) -- DRM-free GOG game library
 - [c411](https://c411.org/) -- French torrent tracker
 

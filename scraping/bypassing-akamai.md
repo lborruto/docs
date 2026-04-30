@@ -15,7 +15,7 @@ Standard Python HTTP clients (`requests`, `httpx`, `aiohttp`) get blocked immedi
 
 ## curl_cffi: Chrome TLS Impersonation
 
-[curl_cffi](https://github.com/lexiforest/curl_cffi) is a Python binding for libcurl that can impersonate real browsers at the TLS level. Setting `impersonate="chrome"` reproduces Chrome's exact:
+[curl_cffi](https://github.com/lexiforest/curl_cffi) is a Python binding for libcurl that can impersonate real browsers at the TLS level. Setting an explicit Chrome version like `impersonate="chrome145"` reproduces that Chrome version's exact:
 
 - TLS cipher suite ordering and extensions (including post-quantum X25519MLKEM768)
 - HTTP/2 SETTINGS frame values (`HEADER_TABLE_SIZE=65536`, `INITIAL_WINDOW_SIZE=6291456`, etc.)
@@ -28,7 +28,7 @@ from curl_cffi.requests import Session as CurlSession
 from curl_cffi.const import CurlOpt
 
 session = CurlSession(
-    impersonate="chrome",
+    impersonate="chrome145",
     timeout=10,
     allow_redirects=True,
     headers={"Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7"},
@@ -47,6 +47,14 @@ session = CurlSession(
 
 resp = session.get("https://target.example.com/search?q=test")
 ```
+
+### Pin an explicit version, not the `chrome` alias
+
+The `chrome` / `safari` / `firefox` aliases auto-track curl_cffi's latest target — convenient, but if a release changes the wire image of "latest" and Akamai has already fingerprinted it, your scraper breaks on the next `pip install`. Pin an explicit version (e.g. `chrome145`, `safari184`) so the fingerprint only changes when you change it.
+
+Akamai's detection rules update on a regular cadence. Expect any single fingerprint to last 6–12 months before the chosen Chrome version starts returning 403s; when that happens, sweep `curl_cffi.requests.impersonate.BrowserTypeLiteral` against the target with fresh proxy IPs to find the next working version. Newer is not always better — the latest target is usually the first to be caught, while older versions sometimes survive longer because they're indistinguishable from real users still on those browsers.
+
+Use curl_cffi `>= 0.15.0` for access to chrome145+. Earlier versions max out at chrome142, which is now reliably blocked by Akamai.
 
 ### What NOT to Set Manually
 
@@ -111,7 +119,11 @@ If you start getting blocked, back off. A simple escalation pattern: track how m
 
 ## Results
 
+With a current fingerprint (chrome145 at time of writing) + residential FR proxies + jittered delays:
+
 - Typical latency: 1-2s per request
-- Block rate: <1% with proper delays
+- Block rate: <5%, mostly per-IP reputation hits rather than fingerprint detection (residual blocks come from the proxy provider's pool overlap with other scrapers' burned IPs, not from your TLS image)
 - No headless browser needed
 - No JavaScript execution needed
+
+Verify health by tracking the rate of 403/535-byte "Access Denied" responses; a sudden jump from <5% to >50% means the fingerprint has been caught and you need to sweep alternatives.

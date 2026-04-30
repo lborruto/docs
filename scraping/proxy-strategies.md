@@ -21,7 +21,7 @@ Use when each request is independent and you don't need cookies to persist:
 from curl_cffi.requests import Session as CurlSession
 
 session = CurlSession(
-    impersonate="chrome",
+    impersonate="chrome145",
     proxy="http://user:pass@gate.provider.com:port",
 )
 # Provider rotates exit IP on every request
@@ -44,7 +44,7 @@ def get_sticky_proxy(account_id):
     return f"{scheme}://{username}:{password}@{host}:{port}"
 
 proxy = get_sticky_proxy("user@example.com")
-session = CurlSession(impersonate="chrome", proxy=proxy)
+session = CurlSession(impersonate="chrome145", proxy=proxy)
 ```
 
 The `sessionduration-10` parameter tells the provider to keep the IP sticky for 10 minutes.

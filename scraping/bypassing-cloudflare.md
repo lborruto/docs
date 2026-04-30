@@ -26,13 +26,13 @@ The key difference from Akamai: Cloudflare's cookie-based challenge system means
 
 ## TLS Impersonation + Cookie Injection
 
-Same `curl_cffi` + `impersonate="chrome"` as for Akamai (see [Bypassing Akamai](bypassing-akamai.md)). The addition is injecting Cloudflare cookies before each request:
+Same `curl_cffi` + a pinned Chrome impersonation as for Akamai (see [Bypassing Akamai](bypassing-akamai.md)). The addition is injecting Cloudflare cookies before each request:
 
 ```python
 from curl_cffi.requests import Session as CurlSession
 
 session = CurlSession(
-    impersonate="chrome",
+    impersonate="chrome145",
     timeout=20,
     proxy="http://user:pass@gate.provider.com:port",
 )
@@ -167,7 +167,7 @@ def is_cloudflare_challenge(html):
 def scrape(url):
     cookies = get_or_solve_cookies(url)
 
-    session = CurlSession(impersonate="chrome", timeout=20, proxy=proxy_url)
+    session = CurlSession(impersonate="chrome145", timeout=20, proxy=proxy_url)
     for name in ('cf_clearance', '__cf_bm', '_cfuvid'):
         if cookies.get(name):
             session.cookies.set(name, cookies[name], domain='.target.com')

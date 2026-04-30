@@ -244,7 +244,7 @@ Some proxy DNS resolvers can't resolve dynamically-generated WAF token subdomain
 
 ```python
 if has_proxy and not token:
-    direct_session = CurlSession(impersonate="chrome")  # no proxy
+    direct_session = CurlSession(impersonate="chrome145")  # no proxy
     token = solve_waf(direct_session, html, domain)
 ```
 

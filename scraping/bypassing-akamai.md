@@ -173,6 +173,159 @@ When a request returns 403, immediately retrying against the same target with a 
 
 If the session received an `ak_bmsc` or `bm_sv` cookie before the 403, Akamai has flagged that session as Strict. Continued requests on the same session — even from a new IP — will fail. Discard the cookie jar after any 403 and start fresh.
 
+## Pool Architecture: Sustained Multi-Worker Operation
+
+The naive "fresh session per scrape" pattern pays the homepage→category warmup cost on every request and produces fingerprint+cookie trails that get flagged quickly. For sustained operation across a fleet — multiple gunicorn workers, cron jobs, batch backfills — a pre-warmed session pool is the right primitive.
+
+### The model
+
+Maintain a Redis-backed pool of N pre-warmed sessions. Each session carries:
+
+- A sticky proxy session (10–30 min lifetime)
+- An Akamai cookie jar (`ak_bmsc`, `bm_sv`, sometimes `_abck`) populated by a homepage→category warmup chain
+- A per-session request counter — retire at 15–25 requests to bound per-session blast radius
+- A **jittered** TTL (`expires_at = created_at + TTL + uniform(0, TTL × 0.2)`) so a burst of mints doesn't expire synchronously
+
+Workers `LPOP` a session, do their work, then `RPUSH` it back on success or move it to a sick set on failure. A background maintainer keeps the pool topped up to target size.
+
+```
+ebay:pool:warm           LIST     SIDs ready for use
+ebay:pool:sick           SET      SIDs awaiting GC
+ebay:pool:session:{sid}  HASH     cookies_json, proxy_session, impersonate,
+                                  created_at, expires_at, request_count, status
+ebay:pool:mint_lock      STRING   global mint serialization
+```
+
+### Mint serialization across processes
+
+`threading.Lock` is per-process. In a fleet of 4 gunicorn workers + a cron container, each worker has its own lock — they can all mint simultaneously when the pool drains, and overshoot the target by Nx.
+
+Use a Redis-level lock with `SET ebay:pool:mint_lock 1 NX EX 30`. Acquire with a bounded wait (3s), release in a `finally:` block:
+
+```python
+def mint_one(*, respect_ceiling: bool = False) -> str | None:
+    deadline = time.time() + 3.0
+    while time.time() < deadline:
+        if r.set(KEY_MINT_LOCK, '1', nx=True, ex=30):
+            break
+        time.sleep(0.1)
+    else:
+        return None  # contention timeout
+
+    try:
+        # Maintainer callers pass respect_ceiling=True so they no-op if
+        # another worker has already filled the pool. Hitchhiker callers
+        # (a real scrape waiting on a session) leave this False.
+        if respect_ceiling and r.llen(KEY_WARM) >= TARGET_SIZE:
+            return None
+        meta = warmup_chain()                   # homepage GET → dwell → category GET
+        store_session(meta)
+        r.rpush(KEY_WARM, meta['sid'])
+        return meta['sid']
+    finally:
+        r.delete(KEY_MINT_LOCK)
+```
+
+The maintainer's iteration becomes a `while LLEN(warm) < target: mint_one(respect_ceiling=True)` loop that re-reads the count between mints.
+
+### TTL jitter: avoid the synchronous expiration stampede
+
+When the pool's sessions are minted in a burst (after deploy, after a Redis flush, or at cold boot), a uniform TTL means they all expire within seconds of each other. The pool drains faster than serial mints can refill, and concurrent requests fall through to the no-pool path → captcha cascade.
+
+Store a per-session jittered `expires_at` at mint time and verify staleness against it:
+
+```python
+expires_at = created_at + TTL + random.uniform(0, TTL * 0.2)
+
+def is_stale(meta):
+    if meta['request_count'] >= MAX_REQUESTS_PER_SESSION:
+        return True
+    return time.time() >= meta.get('expires_at', 0)
+```
+
+±20% jitter on a 7200s TTL across 15 sessions spreads expirations over ~1.5 hours. The maintainer keeps pace.
+
+### Pool-miss policy
+
+When `checkout()` returns None (pool empty), there are two paths:
+
+- **`fallback`** — skip the pool, run the scrape with `session=None`, fresh `impersonate="chrome"`, no warm cookies. Fast, but high block rate because the request has no `ak_bmsc`/`bm_sv` to ride on.
+- **`inline_mint`** — block the caller for one mint cycle (~5–10s), then proceed with a freshly-warmed session. Slower but reliable.
+
+Frontend / SLA-bound paths should default to `inline_mint`: a 5–10s slow page beats a captcha error. Background batch can use either; `inline_mint` is also recommended there since the worker has nothing better to do.
+
+### Hitchhiker mints
+
+The dedicated category-page warmup costs bandwidth. When a real request is already waiting (pool was empty when the caller hit checkout), skip the synthetic category GET — the real scrape will serve as the second warmup step:
+
+```python
+def execute_leg(scrape_call):
+    meta = checkout()
+    if meta is None:
+        mint_one(skip_category=True)            # hitchhiker: homepage only
+        meta = checkout()
+    return scrape_call(meta)
+```
+
+Cuts ~50% of warmup bandwidth on the hitchhiker path. The session arrives with the homepage cookies; the real eBay request picks up the rest.
+
+### Stream-aborted warmup
+
+Akamai sets its cookies in the initial response headers. The full category-page body (often 1–2 MB) is wasted bandwidth on the warmup. Abort after ~64 KB:
+
+```python
+with session.stream('GET', category_url) as r:
+    total = 0
+    for chunk in r.iter_content(chunk_size=4096):
+        total += len(chunk)
+        if total >= 65_536:
+            break
+```
+
+Real measurement on eBay's category search: full-page warmup ~1.5 MB; stream-aborted warmup ~150 KB per mint. Proxy providers bill the wire bytes — this directly cuts proxy spend.
+
+### Cookie roll-forward
+
+`bm_sv` rotates on most protected requests. On `return_session(success=True, cookies=live)`, persist the post-scrape cookie jar back into the session's hash so the next caller starts from the current server-side session state:
+
+```python
+def return_session(sid, success, cookies=None):
+    if not success:
+        mark_sick(sid)
+        return
+    if cookies:
+        r.hset(session_key(sid), 'cookies_json', json.dumps(cookies))
+    r.hincrby(session_key(sid), 'request_count', 1)
+    r.rpush(KEY_WARM, sid)
+```
+
+Without roll-forward, sessions degrade as their stored cookies drift out of sync.
+
+### Pre-warm at process boot
+
+A cron or batch process running outside the maintainer-running fleet starts with an empty (or stale) local view of the pool. The first scrapes serially trigger hitchhiker mints — a cold-start tax of ~5–10s × N for the first N requests.
+
+Front-load it: call `pool_iteration()` once synchronously at process start. The mint lock serializes globally with the worker fleet's maintainer, so there's no double-mint risk.
+
+```python
+def main():
+    args = parser.parse_args()
+    pool.prewarm()                              # blocks ~30–60s cold, no-op when warm
+    for item in items:
+        scrape(item)
+```
+
+### Per-session telemetry
+
+Persist these fields on every scrape's metrics row:
+
+- `pool_sid` — which session served the request
+- `pool_request_index` — how many requests this session has handled
+- `pool_session_age_s` — wall-clock age at request time
+- `pool_status_after` — `alive` / `sick` / `no_pool` (fallback was used)
+
+Pool-wide gauges to graph: `LLEN warm` over time, `SCARD sick`, `TTL mint_lock` (>0 means a mint is in progress). Alert when `pool_status_after='no_pool'` rate exceeds 1% — the pool is draining faster than the maintainer can refill, indicating the target size is too low or the TTL jitter is too narrow for the current burst pattern.
+
 ## Block Detection
 
 ```python

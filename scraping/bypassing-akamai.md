@@ -88,7 +88,7 @@ resp = session.get("https://target.example.com/search?q=test")
 
 ### Picking the impersonate target
 
-The `chrome` alias auto-tracks the latest target curl_cffi ships. As of `curl_cffi==0.15.1b1` that resolves to `chrome146`. Pinning the explicit version (`impersonate="chrome146"`) means your scraper's wire image only changes when you upgrade the library — convenient for stability but easy to forget.
+The `chrome` alias auto-tracks the latest target curl_cffi ships. As of `curl_cffi==0.15.1b1` that resolves to `chrome148`. Pinning the explicit version (`impersonate="chrome148"`) means your scraper's wire image only changes when you upgrade the library — convenient for stability but easy to forget.
 
 **The "best" impersonate target rotates over time.** Akamai's per-tenant ML auto-tunes its scoring; an impersonate that passed 100% last week may drop to 20% next week. Specific patterns observed in the field:
 
@@ -243,7 +243,7 @@ def is_stale(meta):
     return time.time() >= meta.get('expires_at', 0)
 ```
 
-±20% jitter on a 7200s TTL across 15 sessions spreads expirations over ~1.5 hours. The maintainer keeps pace.
+±20% jitter on a 7200s TTL spreads expirations across a ~24-minute window (0 to 0.2×7200s = 1440s of added jitter). The maintainer keeps pace.
 
 ### Pool-miss policy
 
@@ -305,12 +305,12 @@ Without roll-forward, sessions degrade as their stored cookies drift out of sync
 
 A cron or batch process running outside the maintainer-running fleet starts with an empty (or stale) local view of the pool. The first scrapes serially trigger hitchhiker mints — a cold-start tax of ~5–10s × N for the first N requests.
 
-Front-load it: call `pool_iteration()` once synchronously at process start. The mint lock serializes globally with the worker fleet's maintainer, so there's no double-mint risk.
+Front-load it: call `prewarm_pool()` once synchronously at process start. The mint lock serializes globally with the worker fleet's maintainer, so there's no double-mint risk.
 
 ```python
 def main():
     args = parser.parse_args()
-    pool.prewarm()                              # blocks ~30–60s cold, no-op when warm
+    prewarm_pool()                              # blocks ~30–60s cold, no-op when warm
     for item in items:
         scrape(item)
 ```

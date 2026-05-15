@@ -21,7 +21,7 @@ Use when each request is independent and you don't need cookies to persist:
 from curl_cffi.requests import Session as CurlSession
 
 session = CurlSession(
-    impersonate="chrome145",
+    impersonate="chrome",
     proxy="http://user:pass@gate.provider.com:port",
 )
 # Provider rotates exit IP on every request
@@ -35,19 +35,24 @@ No per-IP health tracking, no cookie warming, no session management. Each reques
 Use when cookies obtained during one request must be sent from the same IP later (e.g. after login):
 
 ```python
-import hashlib
+import uuid
 
-def get_sticky_proxy(account_id):
-    """Deterministic session ID per account -> same IP always."""
-    session_id = hashlib.sha256(account_id.encode()).hexdigest()[:8]
-    username = f"user-{base_user}-session-{session_id}-sessionduration-10"
-    return f"{scheme}://{username}:{password}@{host}:{port}"
+def get_sticky_proxy(base_user, password, host, port, sessttl_min=120):
+    """Random session ID -> same IP for the next sessttl_min minutes.
 
-proxy = get_sticky_proxy("user@example.com")
-session = CurlSession(impersonate="chrome145", proxy=proxy)
+    Username/password syntax varies by provider. The example below uses
+    DataImpulse's `;sessid.X;sessttl.N` modifier appended to the username
+    (semicolon-delimited, N in minutes).
+    """
+    sid = uuid.uuid4().hex[:12]
+    username = f"{base_user};sessid.{sid};sessttl.{sessttl_min}"
+    return f"http://{username}:{password}@{host}:{port}"
+
+proxy = get_sticky_proxy("user__cr.fr", "pw", "gw.dataimpulse.com", 823)
+session = CurlSession(impersonate="chrome", proxy=proxy)
 ```
 
-The `sessionduration-10` parameter tells the provider to keep the IP sticky for 10 minutes.
+The `sessttl` value pins the exit IP for that many minutes. Use a deterministic `sessid` (e.g. `sha256(account_id)[:12]`) when you need the same IP for a specific account across processes; a random `sessid` is fine when you just need within-process stickiness.
 
 ## The French ISP Proxy Problem
 

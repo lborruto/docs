@@ -74,34 +74,36 @@ Three challenge types exist:
 
 ### Step 3: Browser Fingerprint
 
-The fingerprint payload must look like a real Chrome browser's `challenge.js` output:
+The fingerprint payload must look like a real Chrome browser's `challenge.js` output (the real payload includes many more fields than shown here — `metrics`, timing values, `capabilities`, `math` constants, `stealth`, form detection, etc.; this is the abbreviated shape):
 
 ```python
 def build_fingerprint(user_agent):
-    gpu = random.choice(gpu_database)  # JSON file with real WebGL profiles
+    gpu = random.choice(gpus)  # loaded from webgl.json — real WebGL profiles
 
     fp = {
         "plugins": [
-            {"name": "PDF Viewer"},
-            {"name": "Chrome PDF Viewer"},
-            {"name": "Chromium PDF Viewer"},
-            {"name": "Microsoft Edge PDF Viewer"},
-            {"name": "WebKit built-in PDF"},
+            {"name": "PDF Viewer", "str": "PDF Viewer "},
+            {"name": "Chrome PDF Viewer", "str": "Chrome PDF Viewer "},
+            {"name": "Chromium PDF Viewer", "str": "Chromium PDF Viewer "},
+            {"name": "Microsoft Edge PDF Viewer", "str": "Microsoft Edge PDF Viewer "},
+            {"name": "WebKit built-in PDF", "str": "WebKit built-in PDF "},
         ],
         "screenInfo": "1920-1080-1032-24-*-*-*",
         "userAgent": user_agent,
         "webDriver": False,
         "gpu": {
-            "vendor": gpu["webgl_unmasked_vendor"],
+            "vendor": gpu["webgl"][0]["webgl_unmasked_vendor"],
             "model": gpu["webgl_unmasked_renderer"],
-            "extensions": gpu["webgl_extensions"].split(";"),
+            "extensions": gpu["webgl"][0]["webgl_extensions"].split(";"),
         },
         "canvas": {
             "hash": random.randrange(645172295, 735192295),
+            "emailHash": None,
             "histogramBins": [random.randrange(0, 40) for _ in range(256)],
         },
         "crypto": {
-            "subtle": 1, "encrypt": True, "decrypt": True,
+            "crypto": 1, "subtle": 1, "encrypt": True, "decrypt": True,
+            "wrapKey": True, "unwrapKey": True,
             "sign": True, "verify": True, "digest": True,
             "deriveBits": True, "deriveKey": True,
             "getRandomValues": True, "randomUUID": True,
@@ -110,12 +112,14 @@ def build_fingerprint(user_agent):
             "wd": {"properties": {"document": [], "window": [], "navigator": []}},
             "phantom": {"properties": {"window": []}},
         },
-        "version": "2.4.0",  # WAF SDK version
+        "version": WAF_SDK_VERSION,  # e.g. "2.4.0"
         "id": str(uuid.uuid4()),
+        # ... plus metrics, start/end timestamps, capabilities, math,
+        # dupedPlugins, stealth, formDetected, numForms, errors, ...
     }
 
-    checksum, encrypted_data = encode_with_crc(fp)
-    return checksum, encrypted_data
+    checksum, payload = encode_with_crc(fp)        # CRC32 prefix + JSON body
+    return checksum.decode(), encrypt(payload)     # AES-GCM encrypted blob
 ```
 
 Key elements:
@@ -123,7 +127,7 @@ Key elements:
 - **GPU data**: randomized from a database of real WebGL renderers (NVIDIA, AMD, Intel)
 - **Canvas hash**: randomized within a realistic range
 - **Automation detection**: reports "no automation detected" (`webDriver: false`, empty property arrays)
-- **CRC checksum**: payload is CRC32-checksummed and encrypted before transmission
+- **CRC checksum + encryption**: payload is CRC32-checksummed (`encode_with_crc`) and then AES-GCM encrypted (`encrypt`) before transmission — the wire format is `iv_b64::tag_hex::ciphertext_hex`
 
 ### Step 4: Solve Proof-of-Work
 
@@ -153,8 +157,14 @@ def compute_scrypt_nonce(challenge_input, checksum, difficulty):
             salt=checksum.encode(),
             n=128, r=8, p=1, dklen=16,
         )
-        if leading_zero_bits(result) >= difficulty:
-            return str(nonce)
+        # Same byte-prefix check as hash_pow: difficulty // 8 leading zero
+        # bytes, then (difficulty % 8) leading zero bits in the next byte.
+        full, rem = divmod(difficulty, 8)
+        if result[:full] != b"\x00" * full:
+            continue
+        if rem and (result[full] >> (8 - rem)):
+            continue
+        return str(nonce)
 ```
 
 **Bandwidth challenge** (no computation -- just upload):
@@ -202,13 +212,17 @@ Set the token as both a cookie and a request header:
 
 ```python
 def inject_waf_token(session, token, domain):
+    # Clear stale cookies on every domain variant Amazon may have set
+    # (RFC 6265 domain matching means duplicates can otherwise stack up).
+    for cookie_domain in {domain, f".{domain}", f".{domain.removeprefix('www.')}"}:
+        try:
+            session.cookies.jar.clear(cookie_domain, "/", "aws-waf-token")
+        except KeyError:
+            pass
+    # Set on the bare parent domain so it applies to www. and subdomains
     bare_domain = f".{domain.removeprefix('www.')}"
-    try:
-        session.cookies.jar.clear(bare_domain, "/", "aws-waf-token")
-    except KeyError:
-        pass
     session.cookies.set("aws-waf-token", token, domain=bare_domain, path="/")
-    # Also pass as header on the retry request
+    # Also pass as a header on the retry request
     return {"x-aws-waf-token": token}
 ```
 
@@ -224,7 +238,10 @@ def solve_waf(session, html, domain):
     for attempt in range(3):
         inputs = get_inputs(waf_session, endpoint)
 
-        if inputs.get("challenge_type") == BANDWIDTH_TYPE:
+        # BANDWIDTH_CHALLENGE is a hash-like sentinel string returned in
+        # inputs["challenge_type"] (the same dict also carries hashcash and
+        # scrypt sentinels in CHALLENGE_TYPES).
+        if inputs.get("challenge_type") == BANDWIDTH_CHALLENGE:
             solution, metadata = build_bandwidth_payload(inputs)
             token = mp_verify(waf_session, endpoint, solution, metadata)
         else:
@@ -244,7 +261,7 @@ Some proxy DNS resolvers can't resolve dynamically-generated WAF token subdomain
 
 ```python
 if has_proxy and not token:
-    direct_session = CurlSession(impersonate="chrome145")  # no proxy
+    direct_session = CurlSession(impersonate="chrome")  # no proxy
     token = solve_waf(direct_session, html, domain)
 ```
 
@@ -260,8 +277,12 @@ def solve_captcha(session, captcha_page_url, html):
 
     img_b64 = base64.b64encode(session.get(img['src']).content).decode()
 
-    # CapSolver ImageToTextTask -- synchronous, result in response
-    resp = requests.post('https://api.capsolver.com/createTask', json={
+    # CapSolver ImageToTextTask -- synchronous, result in response.
+    # Use a separate curl_cffi session so the CAPTCHA-solver call doesn't
+    # share TLS state with the WAF-bound session.
+    from curl_cffi import requests as curl_requests
+    solver = curl_requests.Session()
+    resp = solver.post('https://api.capsolver.com/createTask', json={
         'clientKey': api_key,
         'task': {'type': 'ImageToTextTask', 'body': img_b64},
     }).json()

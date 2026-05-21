@@ -4,7 +4,7 @@ How to scrape Akamai-protected pages using Chrome TLS impersonation — without 
 
 ## What Akamai Detects
 
-Akamai Bot Manager scores requests on a 0–100 scale starting with the very first request. The score combines signals from three independent gates: protocol-level fingerprint, IP reputation, and request pattern. **All three matter; passing only two is not enough.** Most documentation focuses on the fingerprint gate alone, which is why "use curl_cffi" advice often fails in production.
+Akamai Bot Manager scores requests on a 0–100 scale starting with the very first request. The score combines signals from three gates: protocol-level fingerprint, IP/session reputation, and request pattern. Documentation often presents these as co-equal "all three must pass" requirements, but in practice **session trust dominates once you have a warm cookie jar** — a session that has built up an `ak_bmsc`/`bm_sv` history through legitimate-looking navigation rides through subsequent requests largely independent of the IP's baseline reputation. The warm-pool architecture below is what makes a cheap-residential proxy viable on Premier targets.
 
 ### Gate 1 — Protocol-level fingerprint
 
@@ -13,12 +13,14 @@ Akamai Bot Manager scores requests on a 0–100 scale starting with the very fir
 - **Header order + Sec-CH-UA consistency** — the UA major version must match the highest `Sec-CH-UA` brand version; `Sec-CH-UA-Mobile: ?1` must imply mobile UA; Firefox/Safari UAs must NOT send Sec-CH-UA at all (those headers are Chromium-only).
 - **Sec-Fetch-\* triad** — `Sec-Fetch-Site: none` for a typed URL, `same-origin`/`same-site`/`cross-site` for subsequent navigations.
 
-### Gate 2 — IP reputation
+### Gate 2 — IP / session reputation
 
-Akamai operates Client Reputation, a global scoring system shared across all Akamai customers. An IP that scraped bank A carries a negative score when it hits retailer B. Two key consequences:
+Akamai operates Client Reputation, a global IP scoring system shared across all Akamai customers, but **session-level state (`ak_bmsc`, `bm_sv`, `_abck`) accumulates trust on top of the IP baseline** and dominates the score for any request that already has a warm cookie jar.
 
-- Cheap residential proxy pools (anything in the $1/GB range) carry significant shared abuse history from other scraping customers. Even your first request from a "fresh" sticky IP arrives with a sub-zero baseline.
-- Reputation decays over a ~30-day rolling window. IPs burned today stay flagged for weeks.
+- IP scoring still matters for the very first request from an unwarmed session: cheap residential pools carry shared abuse history that puts the first hit at a sub-zero baseline.
+- Once Akamai has minted `ak_bmsc`/`bm_sv` for a session and that session has done a few legitimate-looking page loads, subsequent requests are scored predominantly on the session, not the IP.
+- This is why the warm-pool architecture (see below) turns a $1/GB residential proxy into 95%+ sustained success — you pay the IP-reputation cost once per session mint instead of once per request.
+- Reputation decays over a ~30-day rolling window; IPs burned today stay flagged for weeks, but session-warming pulls future requests out of that penalty range.
 
 ### Gate 3 — Request pattern (velocity + clustering)
 
@@ -43,7 +45,7 @@ For a pure-HTTP scraper (curl_cffi + residential proxies, no JS execution):
 
 Any documentation claiming "<5% block rate" is either outdated, run against unprotected paths, or measured before Akamai's recent rule updates. eBay-tier targets running Premier + Content Protector are at the harder end of the range.
 
-The dominant variable for a target's success rate is **IP pool quality**, not fingerprint freshness. A perfect TLS impersonation through a burned residential pool will sit at 10–25%. The same fingerprint through a clean pool will hit 70–90%. Proxy choice is roughly half the battle.
+The dominant variable for sustained success rate is **session warmth**, not IP pool quality or fingerprint freshness. A perfect TLS impersonation with a fresh, unwarmed session through a clean residential pool still bottoms out at 30–60% on a Premier target. The same fingerprint through the cheapest $1/GB residential, but riding a warm `ak_bmsc`/`bm_sv` from a homepage→category warmup, sustains 95%+ on eBay-tier traffic — measured live in our prod fleet over the last 48h. Proxy quality matters for the cold mint; the pool architecture matters for everything after.
 
 ## curl_cffi: Chrome TLS Impersonation
 
@@ -108,6 +110,8 @@ CANDIDATES = [
 ]
 ```
 
+In CollectValue prod we've run that probe and the outcome (2026-05-12 A/B) was that single-target `chrome` outperforms any rotation we tested against eBay.fr. The pool is currently pinned via `EBAY_IMPERSONATE_POOL=('chrome',)` with weighted-sampling support left in for future re-tuning (`EBAY_IMPERSONATE_PRIMARY_WEIGHTS`, empty by default). The probe pattern above is still the right method to use when the success rate drifts — we just settled on a single-target outcome this round.
+
 ### What NOT to set manually
 
 curl_cffi's `impersonate=` already handles `User-Agent`, `Sec-CH-UA`, `Sec-CH-UA-Mobile`, `Sec-CH-UA-Platform`, `Accept`, and `Accept-Encoding` for the impersonated browser. Overriding these breaks the fingerprint:
@@ -120,19 +124,27 @@ The general rule: if curl_cffi doesn't set a header for a given impersonate, do 
 
 The only header consistently worth setting manually is `Accept-Language`, because curl_cffi doesn't localize this.
 
-## IP Reputation: The Dominant Variable
+## IP Reputation: A Cost You Pay At Session Mint, Not Per Request
 
-For a target with strong protocol-level scoring, IP pool quality determines roughly half the sustained success rate. The cheap-residential market is a known stressor for Akamai-protected sites.
+For a target with strong protocol-level scoring, IP pool quality determines how expensive each **session mint** is — i.e. how often the homepage→category warmup gets blocked before producing a usable `ak_bmsc`/`bm_sv`. It does **not** determine the steady-state success rate of warm-session requests, which is dominated by session trust (see below).
 
-### Provider tiers (general observations from public benchmarks and field testing)
+In practice, with a warm pool maintaining N pre-warmed sessions:
 
-- **Cheapest tier ($1–2/GB):** rough pool with significant shared abuse history. Effective ceiling around 30–50% on Akamai Premier targets even with perfect fingerprint.
-- **Mid tier ($2–5/GB):** noticeably cleaner. Decodo, IPRoyal standard, SOAX premium reach 50–80% on most Akamai-protected paths.
-- **Premium tier ($4–10/GB):** Bright Data, Oxylabs, NodeMaven specifically curate against pre-flagged IPs. Sustained 80–95% on most targets, but mandatory KYC and minimum spends.
+- The IP reputation cost is paid once per mint, then amortized across the 15–25 requests that session services before retirement.
+- A cheap residential pool with a 50% mint success rate still ends up at 95%+ sustained throughput, because failed mints are retried at the maintainer layer and never reach the caller.
+- Without a pool, every request pays the cold-mint penalty. There IP reputation matters directly and the cheapest tiers do bottom out at the rates below.
+
+### Provider tiers — relevant for cold-mint cost, not sustained rate
+
+- **Cheapest tier ($1–2/GB):** rough pool with significant shared abuse history. ~30–50% mint success on Akamai Premier; viable when a warm pool absorbs the misses. DataImpulse, IPRoyal residential, SOAX standard.
+- **Mid tier ($2–5/GB):** noticeably cleaner. Decodo, IPRoyal standard, SOAX premium reach 50–80% mint success. Less retry pressure on the maintainer.
+- **Premium tier ($4–10/GB):** Bright Data, Oxylabs, NodeMaven specifically curate against pre-flagged IPs. 80–95% mint success but mandatory KYC and minimum spends. Worth it if you don't have a pool, or if your scrape volume makes cold mints the bottleneck.
 
 ### Sticky-session lifetime
 
 When the target serves an `ak_bmsc` or `bm_sv` cookie, reusing the same IP for multiple requests lets that cookie's session state accumulate trust. 10–30 minutes per sticky IP is the typical sweet spot — long enough to amortize cookie warming, short enough to limit damage if Akamai escalates scoring mid-session.
+
+In CollectValue prod we run longer: `EBAY_POOL_PROXY_SESSTTL_MIN=120` (2h) paired with `EBAY_POOL_SESSION_TTL_S=7200`, probe-verified that DataImpulse honors `sessttl.120` on port 823. The longer window lets a single warmed cookie jar service 15–25 requests (the per-session retire bound) without the IP rotating mid-life. The `±20%` TTL jitter (`cm_pool.py`/`akamai_pool.py`) handles the synchronous-expiration risk that would otherwise come with 2h sessions.
 
 Most rotating-residential providers offer sticky modes:
 
@@ -336,6 +348,10 @@ def detect_akamai_block(html):
         return 'pardon'
     if 'Access Denied' in html and len(html) < 10_000:
         return 'access-denied'
+    if 'Nous sommes' in html[:500]:
+        return 'nous-sommes'                     # locale-specific Akamai deny
+    if 'pageError' in html or 'page-error' in html:
+        return 'rate_limit'                      # eBay app-level limiter
     if len(html) < 10_000 and re.search(r'Reference #\d+\.\w+', html):
         return 'akamai-ref'
     if len(html) < 30_000 and 'splashui' in html:
@@ -347,7 +363,7 @@ def detect_akamai_block(html):
     return None
 ```
 
-The `len(html)` guards prevent false positives — a real results page is 500KB+, block pages are typically <10KB.
+The `len(html)` guards prevent false positives — a real results page is 500KB+, block pages are typically <10KB. The `rate_limit` class (eBay's app-level limiter, distinct from an Akamai 403) drives an extra cooldown in the pool layer before the next checkout (`EBAY_POOL_RATE_LIMIT_BACKOFF_MIN_S` / `_MAX_S`, default 60–120s).
 
 ### Bot scoring cookie classes
 

@@ -248,7 +248,23 @@ Two behavior knobs control the cron-vs-frontend split:
 - **`cm_cookie_block`** — `True` for cron/batch: inline-mint on pool miss, swap cookies on first 403. `False` for frontend: go bare on pool miss, never swap cookies (rotate IP only), so the 6s deadline holds.
 - **`cm_solve_on_block`** — `True` for cron/batch: after retries exhausted, ask Byparr to fetch the URL directly via headless browser. `False` for frontend: raise `CMBlockedError` immediately.
 
-The same pool primitives also guard a body-level challenge (HTTP 200 with a "Just a moment..." page): on detection we re-checkout and retry once before falling back to a Byparr HTML solve. See `scraper.cardmarket_session._cm_get`.
+The same pool primitives also guard a body-level challenge (HTTP 200 with a "Just a moment..." page): on detection `_cm_get` does one fresh pool checkout + retry, marks the prior cookie sick if the retry still sees a challenge, then falls back to a Byparr HTML-direct solve. See `scraper.cardmarket_session._cm_get`.
+
+Asymmetry to keep in mind:
+
+- **Cron / batch** (`cm_cookie_block=True`, `cm_max_attempts=4`): allowed to mark the cookie sick on the first 403, swap to a fresh pool entry, and inline-mint via Byparr when the pool is empty.
+- **Frontend** (`cm_cookie_block=False`, `cm_max_attempts=2`): never marks the cookie sick on intermediate 403s — only rotates the proxy IP via a fresh `create_cm_session()`. The cookie is only marked sick if all retries are exhausted. On a pool miss the frontend goes bare (no inline mint, no Byparr) to preserve the 6s scrape deadline.
+
+There is no separate `trigger_background_solve()` API: background replenishment is owned by the gevent maintainer greenlet (`cm_pool_maintainer.iteration()`), which refills toward `CM_POOL_TARGET_SIZE` every `CM_POOL_MAINT_INTERVAL_S` and GCs sick entries. Workers never block on a Byparr solve except via `mint_one()` on a deliberate cron-path pool miss.
+
+### `CMNetworkError` vs `CMBlockedError`
+
+`cardmarket_session.py` raises two distinct exception classes that callers (and the metrics layer) must NOT collapse into a single "scrape failed" bucket:
+
+- **`CMNetworkError`** (`cardmarket_session.py:92`) — proxy connection reset, DNS failure, TCP timeout. Raised at line 255-256 from inside the request loop. The cookie is NEVER marked sick on these — the failure has nothing to do with the cookie's validity, and burning the pool on transient proxy hiccups would empty it during any minor proxy provider blip.
+- **`CMBlockedError`** (`cardmarket_session.py:87`) — Cloudflare returned 403, an HTTP 5xx that survived retries, or a body-level challenge that Byparr couldn't solve. Raised at lines 325 / 352 / 414 / 454. Cookies are marked sick on these (subject to the `cm_cookie_block` asymmetry above).
+
+Callers that catch one and not the other risk either (a) leaking proxy failures into the cookie-sick count and prematurely draining the pool, or (b) ignoring Cloudflare-driven blocks because they look like network noise. The split is load-bearing — preserve it when adding new error paths.
 
 ## Results
 

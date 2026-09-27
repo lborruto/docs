@@ -10,6 +10,8 @@ plugins:
     literal: |-
       User-agent: *
       Disallow: /tils
+      Disallow: /-/
+      Disallow: /*.json
   datasette-sitemap:
     sql: |-
       select '/' || topic || '/' || slug as path from til

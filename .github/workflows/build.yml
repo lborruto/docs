@@ -71,6 +71,8 @@ jobs:
           --plugins-dir plugins \
           --template-dir templates \
           --setting allow_facet off \
+          --setting force_https_urls 1 \
+          --setting default_cache_ttl 3600 \
           --generate-dir /tmp/datasette-publish
 
         # Add primary region (Paris) after the app line

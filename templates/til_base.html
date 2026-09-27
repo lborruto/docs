@@ -3,8 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{% set site_url = "https://docs.luca-borruto.com" %}
+{% set site_name = "Today I Learned" %}
 <title>{% block title %}{% endblock %}</title>
-
+<meta name="description" content="{% block description %}Short technical write-ups on web scraping, anti-bot systems, proxies, self-hosting and PC builds.{% endblock %}">
+<link rel="canonical" href="{{ site_url }}{% block canonical_path %}{{ request.path }}{% endblock %}">
+<meta name="author" content="Luca Borruto">
+<meta name="theme-color" content="#644382">
+<meta property="og:site_name" content="{{ site_name }}">
+<meta property="og:type" content="{% block og_type %}website{% endblock %}">
+<meta property="og:title" content="{{ self.title() }}">
+<meta property="og:description" content="{{ self.description() }}">
+<meta property="og:url" content="{{ site_url }}{{ self.canonical_path() }}">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ self.title() }}">
+<meta name="twitter:description" content="{{ self.description() }}">
+{% block structured_data %}{% endblock %}
 <link rel="alternate" type="application/atom+xml" title="Atom" href="/tils/feed.atom">
 {% block extra_head %}{% endblock %}
 <style>
@@ -93,6 +108,16 @@ ul.related {
 }
 ul.related li {
     margin-bottom: 0.3em;
+}
+nav.breadcrumb {
+    background: none;
+    color: #555;
+    font-size: 0.85em;
+    margin-top: 1em;
+}
+nav.breadcrumb a:link,
+nav.breadcrumb a:visited {
+    color: #644382;
 }
 blockquote {
     margin: 1em 0;

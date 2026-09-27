@@ -9,7 +9,43 @@
     {% set raised = raise_404("TIL not found") %}
 {% endif %}
 
-{% block title %}{{ til.title }} | TIL{% endblock %}
+{% block title %}{{ til.title }} | Today I Learned{% endblock %}
+{% block description %}{{ (til.summary or til.title)|truncate(158, True, "…", 0) }}{% endblock %}
+{% block canonical_path %}/{{ topic }}/{{ slug }}{% endblock %}
+{% block og_type %}article{% endblock %}
+{% block structured_data %}
+<meta property="article:published_time" content="{{ til.created_utc }}">
+<meta property="article:modified_time" content="{{ til.updated_utc }}">
+<meta property="article:section" content="{{ topic }}">
+<script type="application/ld+json">
+{{ {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "headline": til.title,
+      "description": (til.summary or til.title)[:300],
+      "datePublished": til.created_utc,
+      "dateModified": til.updated_utc,
+      "articleSection": topic,
+      "inLanguage": "en",
+      "url": "https://docs.luca-borruto.com/" ~ topic ~ "/" ~ slug,
+      "mainEntityOfPage": "https://docs.luca-borruto.com/" ~ topic ~ "/" ~ slug,
+      "author": {"@type": "Person", "name": "Luca Borruto", "url": "https://github.com/lborruto"},
+      "publisher": {"@type": "Person", "name": "Luca Borruto"}
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Today I Learned", "item": "https://docs.luca-borruto.com/"},
+        {"@type": "ListItem", "position": 2, "name": topic, "item": "https://docs.luca-borruto.com/" ~ topic},
+        {"@type": "ListItem", "position": 3, "name": til.title}
+      ]
+    }
+  ]
+}|tojson }}
+</script>
+{% endblock %}
 
 {% block extra_head %}
 <script>
@@ -29,9 +65,24 @@ document.addEventListener('DOMContentLoaded', () => {
 {% endblock %}
 
 {% block body %}
+<nav class="breadcrumb" aria-label="Breadcrumb"><a href="/">Today I Learned</a> › <a href="/{{ topic }}">{{ topic }}</a> › {{ til.title }}</nav>
 <h1>{{ til.title }}</h1>
 
 {{ til.html|safe }}
+
+{% set related = sql("""
+    select topic, slug, title from til
+    where topic = :topic and slug != :slug
+    order by created_utc desc limit 10
+""", {"topic": topic, "slug": slug}, database="tils") %}
+{% if related %}
+<h2 id="more-in-topic">More in {{ topic }}</h2>
+<ul class="related">
+{% for r in related %}
+  <li><a href="/{{ r.topic }}/{{ r.slug }}">{{ r.title }}</a></li>
+{% endfor %}
+</ul>
+{% endif %}
 
 <p class="created">Created {{ til.created }}{% if til.created != til.updated %}, updated {{ til.updated }} &middot; <a href="{{ til.url|replace("/blob/", "/commits/") }}">History</a>{% endif %} &middot; <a href="{{ til.url }}">Edit</a></p>
 

@@ -1,6 +1,16 @@
 {% extends "til_base.html" %}
 
-{% block title %}Today I Learned{% endblock %}<!DOCTYPE html>
+{% block title %}Today I Learned — Luca Borruto{% endblock %}
+{% block canonical_path %}/{% endblock %}
+{% block structured_data %}
+<script type="application/ld+json">
+{{ {"@context": "https://schema.org", "@type": "WebSite", "name": "Today I Learned",
+    "url": "https://docs.luca-borruto.com/",
+    "author": {"@type": "Person", "name": "Luca Borruto", "url": "https://github.com/lborruto"},
+    "potentialAction": {"@type": "SearchAction",
+        "target": "https://docs.luca-borruto.com/tils/search?q={q}", "query-input": "required name=q"}}|tojson }}
+</script>
+{% endblock %}
 
 {% block extra_head %}
 <style>

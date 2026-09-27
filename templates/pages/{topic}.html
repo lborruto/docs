@@ -5,7 +5,9 @@
 """, {"topic": topic}, database="tils")
 %}
 
-{% block title %}TILs on {{ topic }}{% endblock %}<!DOCTYPE html>
+{% block title %}TILs on {{ topic }} | Today I Learned{% endblock %}
+{% block description %}{{ tils|length }} short technical write-up{{ "s" if tils|length > 1 else "" }} on {{ topic }}: {{ tils|map(attribute="title")|join(", ")|truncate(120, True, "…", 0) }}{% endblock %}
+{% block canonical_path %}/{{ topic }}{% endblock %}
 
 {% block body %}
 

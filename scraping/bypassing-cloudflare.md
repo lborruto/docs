@@ -1,6 +1,6 @@
 # Bypassing Cloudflare with curl_cffi and Cookie Management
 
-How to scrape Cloudflare Enterprise-protected pages using Chrome TLS impersonation, cookie reuse, and a stealth browser for challenge solving -- without running a headless browser per request.
+How to scrape Cloudflare Enterprise-protected pages using browser TLS impersonation, a pool of solved cookie sets, and a stealth browser for challenge solving -- without running a headless browser per request.
 
 ## What Cloudflare Detects
 
@@ -9,59 +9,79 @@ Cloudflare Enterprise layers multiple defenses:
 - **TLS fingerprinting** -- matches the TLS handshake against known browser profiles (same principle as Akamai)
 - **JS challenges** -- "Just a moment..." interstitial pages that run JavaScript to verify browser capabilities
 - **Turnstile challenges** -- interactive CAPTCHA-like widgets
-- **`cf_clearance` cookies** -- once a challenge is solved, Cloudflare issues cookies that bypass future challenges for ~25 minutes
+- **Clearance cookies** -- once a challenge is solved, Cloudflare issues cookies (`cf_clearance`, `__cf_bm`, `_cfuvid`) that bypass future challenges for ~25 minutes
 - **HTTP 403/429 responses** -- hard blocks when cookies are invalid or traffic is flagged
 
-The key difference from Akamai: Cloudflare's cookie-based challenge system means you can solve **one** challenge and reuse the cookies across many requests.
+The key difference from Akamai: Cloudflare's cookie-based challenge system means you can solve **one** challenge and reuse the cookies across many requests. The catch is what those cookies are bound to.
+
+## What the Cookies Are Bound To
+
+Treat a solved cookie set as bound to **the IP that solved it and the browser that solved it**:
+
+- **IP** -- a cookie set minted on one IP and replayed through a different (or rotating) IP returns 403 on every fetch, whatever the impersonation. Diagnose it in three fetches: same cookies on the solving IP → 200; through a rotating proxy → 403; a real browser through the proxy → 200 (the browser solves and uses the cookies on one IP in one shot). The IP mismatch is the only variable left.
+- **TLS fingerprint** -- a Firefox User-Agent (the solver's) over a Chrome TLS handshake is the mismatch class Cloudflare rejects. The fetch must impersonate the same browser family, ideally the same major version, as the solver.
+
+Both bindings can be switched on by the edge at any time; a target that tolerated replay across IPs for months can stop overnight. Test the bindings explicitly before blaming fingerprints or the proxy provider.
 
 ## The Approach
 
 ```
-1. Keep a Redis-backed warm pool of N cookie sets (default 10)
-2. On each request, check one out, inject into a curl_cffi session, send
+1. Keep a Redis-backed warm pool of N cookie sets (8–10), each solved through
+   its OWN sticky proxy session and stored with that session's proxy URL
+2. On each request, check one out, inject into a curl_cffi session that egresses
+   through the cookie set's sticky proxy and impersonates the solver's browser
 3. On 200 → return the cookie set to the pool (request_count++)
-4. On CF 403/429 → mark the cookie set sick, rotate proxy IP, retry
-5. A background maintainer mints replacements via Byparr, GCs sick entries
+4. On 403/429 → retry the same cookie set; if every attempt fails, mark it sick
+   and let the next request check out another cookie set (its own exit IP)
+5. A background maintainer mints replacements via the solver, GCs sick entries
 ```
 
-One sick cookie set never blocks the rest of the fleet, and proactive retirement (TTL `CM_POOL_COOKIE_TTL_S=1500` with +-20% jitter; max `CM_POOL_MAX_REQUESTS_PER_COOKIE=50`) keeps `__cf_bm` from hitting its 30-min Cloudflare ceiling mid-request.
+One sick cookie set never blocks the rest of the fleet, and proactive retirement (25-minute TTL with ±20% jitter; 50 requests per cookie set) keeps `__cf_bm` from hitting its 30-minute Cloudflare ceiling mid-request. A fresh sticky exit per cookie set spreads traffic over as many IPs as there are live cookie sets, which keeps every single IP under Cloudflare's per-IP throttle (a handful of rapid requests from one IP returns 429 for minutes).
 
 ## TLS Impersonation + Cookie Injection
 
-Same `curl_cffi` + Chrome impersonation as for Akamai (see [Bypassing Akamai](bypassing-akamai.md)). The addition is injecting Cloudflare cookies before each request:
+The fetch reuses `curl_cffi` like the Akamai path (see [Bypassing Akamai](bypassing-akamai.md)), with three additions: the sticky proxy the cookies were solved on, an impersonation target derived from the solver's User-Agent, and the cookies themselves:
 
 ```python
+import re
 from curl_cffi.requests import Session as CurlSession
+from curl_cffi import requests as _cffi
 
-session = CurlSession(
-    impersonate="chrome",  # alias resolves to the latest Chrome target
-    timeout=20,
-    proxy="http://user:pass@gate.provider.com:port",
-)
+FALLBACK_TARGET = "firefox135"   # any Firefox target the installed curl_cffi ships
 
-# Inject Cloudflare cookies obtained from a previous challenge solve
-for name in ('cf_clearance', '__cf_bm', '_cfuvid'):
-    if cookies.get(name):
-        session.cookies.set(name, cookies[name], domain='.target.com')
+def impersonate_for(solver_ua):
+    """firefox<major> when the installed curl_cffi has that exact target."""
+    m = re.search(r"Firefox/(\d+)", solver_ua or "")
+    if m and f"firefox{m.group(1)}" in _cffi.BrowserType.__members__:
+        return f"firefox{m.group(1)}"
+    return FALLBACK_TARGET
 
-# The User-Agent MUST match the one used during the challenge solve
-if cookies.get('user_agent'):
-    session.headers['User-Agent'] = cookies['user_agent']
-
-resp = session.get("https://target.example.com/page")
+def make_session(cookie_set, timeout=20):
+    session = CurlSession(
+        impersonate=impersonate_for(cookie_set["user_agent"]),
+        timeout=timeout,
+        proxy=cookie_set["proxy_session"],          # the exit that solved the challenge
+    )
+    for name in ("cf_clearance", "__cf_bm", "_cfuvid"):
+        if cookie_set.get(name):
+            session.cookies.set(name, cookie_set[name], domain=".target.example.com")
+    session.headers["User-Agent"] = cookie_set["user_agent"]   # MUST match the solve
+    return session
 ```
 
-Important: `__cf_bm` is the critical cookie -- Cloudflare rejects requests without it. It is **not IP-bound**, so cookies solved from one IP (Byparr's server IP) work across different proxy IPs (the rotating DataImpulse pool).
+`__cf_bm` is the critical cookie -- Cloudflare rejects requests without it. `cf_clearance` only appears when the target actually served an interstitial challenge; a target on a lighter ruleset may hand out `__cf_bm` + `_cfuvid` alone, and those still need the same IP and fingerprint story.
 
-## Solving Challenges with Byparr
+## Solving Challenges with a Stealth Browser
 
-[Byparr](https://github.com/ThePhaseless/Byparr) runs a [Camoufox](https://github.com/nichochar/camoufox) stealth browser (Firefox-based, anti-fingerprint) that solves Cloudflare JS challenges and Turnstile.
+[Byparr](https://github.com/ThePhaseless/Byparr) (a FlareSolverr-compatible API) runs a [Camoufox](https://github.com/nichochar/camoufox) stealth browser (Firefox-based, anti-fingerprint) that solves Cloudflare JS challenges and Turnstile.
 
-### Docker Setup
+### Docker setup
 
 ```yaml
 byparr:
   image: ghcr.io/thephaseless/byparr:latest
+  restart: unless-stopped
+  init: true
   shm_size: 2gb
   deploy:
     resources:
@@ -73,101 +93,141 @@ byparr:
     LOG_LEVEL: info
     LANG: fr_FR
     TZ: Europe/Paris
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - >-
+        find /tmp -maxdepth 1 -name '.X*-lock' -mmin +60 -delete;
+        find /tmp/.X11-unix -type s -mmin +60 -delete 2>/dev/null;
+        [ "$$(find /tmp -maxdepth 1 -name '.X*-lock' | wc -l)" -lt 200 ]
+        && curl -sf "http://127.0.0.1:$${PORT:-8191}/health" > /dev/null
+    interval: 60s
+    timeout: 15s
+    retries: 3
+    start_period: 30s
 ```
 
-### Cookie Solve (Preferred)
+The health check matters more than it looks. Every solve opens a virtual X display, and an aborted solve (client timeout, killed browser) leaks its `/tmp/.X{n}-lock`. The display range is finite (~300); once exhausted the container cannot start **any** browser, every mint fails, the pool drains -- and the image's own HTTP health ping keeps reporting "healthy" because it never starts a browser. Sweeping locks older than an hour every minute makes the container self-heal; failing the check at 200 fresh locks makes a genuine stall visible. Note that a plain container restart does not clear `/tmp`; the sweep has to run inside the container.
 
-Returns cookies you can inject into curl_cffi for subsequent requests:
+Give the solver its own outbound network: it needs internet egress and to be reachable by the workers, nothing else.
+
+### Cookie solve (preferred), through the sticky proxy
+
+Returns cookies you inject into curl_cffi for subsequent requests. The proxy goes in **per-request headers**: Byparr reads `X-Proxy-Server` / `X-Proxy-Username` / `X-Proxy-Password` and ignores the FlareSolverr-style `proxy` field in the body (verified by having the solver load an IP-echo page: body field → the container's own IP, headers → the proxy IP). Send both for FlareSolverr compatibility.
 
 ```python
 import requests
 
-def solve_for_cookies(url, byparr_url="http://byparr:8191"):
-    resp = requests.post(f"{byparr_url}/v1", json={
-        "cmd": "request.get",
-        "url": url,
-        "max_timeout": 60,
-    })
-    solution = resp.json()['solution']
-    cookies = {c['name']: c['value'] for c in solution['cookies']}
-    cookies['user_agent'] = solution['userAgent']
-    return cookies
+def proxy_headers(proxy_url):
+    proto_user, host = proxy_url.split("@", 1)
+    creds, password = proto_user.rsplit(":", 1)
+    proto, _, user = creds.rpartition("://")
+    return {"X-Proxy-Server": f"{proto}://{host}",
+            "X-Proxy-Username": user,            # keeps ";sessid.X;sessttl.N" intact
+            "X-Proxy-Password": password}
+
+def solve_for_cookies(url, new_sticky_proxy, solver_url="http://byparr:8191",
+                      attempts=3, client_timeout=90):
+    """One fresh sticky exit per attempt; returns the cookies AND the proxy that solved them."""
+    for _ in range(attempts):
+        proxy = new_sticky_proxy()                                   # sessttl ~30 min
+        resp = requests.post(f"{solver_url}/v1",
+                             json={"cmd": "request.get", "url": url, "max_timeout": 60,
+                                   "proxy": {"url": proxy}},
+                             headers=proxy_headers(proxy),
+                             timeout=client_timeout)                 # ABOVE max_timeout
+        data = resp.json()
+        if data.get("status") != "ok" or not data["solution"].get("cookies"):
+            continue                                                 # bad exit → next attempt, new exit
+        cookies = {c["name"]: c["value"] for c in data["solution"]["cookies"]}
+        cookies["user_agent"] = data["solution"]["userAgent"]
+        cookies["proxy_session"] = proxy
+        return cookies
+    return None
 ```
 
-### HTML Solve (Fallback)
+Three details carry the reliability:
 
-Returns the fully rendered page HTML when cookie injection doesn't work:
+- **A fresh sticky exit per attempt.** The dominant solve failure is the proxy exit itself (a gateway error mid-solve, a throttled IP). Re-solving on the same exit reproduces it; the next attempt on a new exit recovers.
+- **Client timeout above the solver's `max_timeout`** (90 s vs 60 s), so the solver's own answer -- success or failure -- wins the race instead of a client-side read timeout that leaves a browser running.
+- **Bounded attempts** (3), then fail the mint and let the maintainer try again later.
+
+Solve a cheap, always-challenged page of the target (a category listing), never the pages you scrape.
+
+### HTML solve (fallback)
+
+Returns the fully rendered page when cookie injection cannot be used -- a last resort for batch paths, ~10–20 s per page, no cookie reuse:
 
 ```python
-def solve_challenge(url, byparr_url="http://byparr:8191"):
-    resp = requests.post(f"{byparr_url}/v1", json={
-        "cmd": "request.get",
-        "url": url,
-        "max_timeout": 30,
-    })
-    return resp.json()['solution']['response']  # raw HTML
+def solve_challenge(url, solver_url="http://byparr:8191", attempts=3):
+    for _ in range(attempts):
+        resp = requests.post(f"{solver_url}/v1",
+                             json={"cmd": "request.get", "url": url, "max_timeout": 30},
+                             timeout=45)
+        data = resp.json()
+        if data.get("status") == "ok" and data["solution"].get("response"):
+            return data["solution"]["response"]      # raw HTML
+    return None
 ```
 
-Cookie solve is preferred because one solve provides cookies for hundreds of subsequent curl_cffi requests. HTML solve is a last resort.
+Cookie solve is preferred because one solve provides cookies for dozens of subsequent curl_cffi requests. Solving takes 15–35 s; the challenge itself is most of it, and the solver opens a fresh browser context per call, so there is no clearance reuse inside the solver -- the pool is where reuse lives.
 
-The solve runs from the container's own IP (no proxy needed) because `__cf_bm` cookies are not IP-bound.
+## Cookie Caching: From One Cookie to a Warm Pool
 
-## Cookie Caching: From One-Cookie to a Warm Pool
+You don't want to solve on every request, and you don't want a single shared cookie either: one 403 wipes it for every worker until the next solve.
 
-Solving a challenge takes 15-35 seconds. You don't want to do this on every request, and you don't want a single shared cookie either: one 403 wipes it for every worker until the next solve.
-
-The fix is a Redis-backed **warm pool** of N parallel cookie sets. Workers check one out per request, return it on success, mark it sick on a CF 403. A background maintainer keeps the pool topped up. One sick cookie no longer impacts the rest of the fleet.
+The fix is a Redis-backed **warm pool** of N parallel cookie sets. Workers check one out per request, return it on success, mark it sick when it is exhausted. A background maintainer keeps the pool topped up. One sick cookie set no longer impacts the rest of the fleet.
 
 ### Redis layout
 
 ```
-cm:pool:warm          LIST    # cookie ids ready for use
-cm:pool:sick          SET     # cookie ids that died, pending GC
-cm:pool:cookie:{cid}  HASH    # cf_clearance, __cf_bm, _cfuvid, user_agent,
-                              # created_at, expires_at, request_count, status
-cm:pool:mint_lock     STRING  # NX-locked across the fleet to serialize mints
+pool:warm          LIST    # cookie ids ready for use
+pool:sick          SET     # cookie ids that died, pending GC
+pool:cookie:{cid}  HASH    # cf_clearance, __cf_bm, _cfuvid, user_agent, proxy_session,
+                           # created_at, expires_at, request_count, status
+pool:mint_lock     STRING  # NX-locked across the fleet to serialize mints
 ```
 
 ### Pool primitives
 
-```python
-checkout()                       -> meta dict | None   # LPOP warm, skip-if-stale
-return_cookie(cid, success=...)                        # RPUSH warm or mark sick
+```
+checkout()                       -> meta dict | None   # drain stale entries, return the first fresh one
+return_cookie(cid, success=...)                        # RPUSH warm, or retire when exhausted / expired
 mark_sick(cid, reason)                                 # LREM warm + SADD sick
-apply_cookies(session, meta)                           # inject into curl_cffi session
-mint_one(respect_ceiling=False) -> cid | None          # Byparr solve + RPUSH warm
+apply_cookies(session, meta)                           # inject cookies + UA into a curl_cffi session
+mint_one(respect_ceiling=False) -> cid | None          # solver + sticky exit, RPUSH warm
 gc_sick()                       -> int                 # delete end-of-life entries
 ```
 
-Each cookie set carries a `request_count` (retired at `CM_POOL_MAX_REQUESTS_PER_COOKIE=50`) and `expires_at` (TTL `CM_POOL_COOKIE_TTL_S=1500` with +-20% jitter, so a boot burst doesn't synchronously expire). `_is_stale` checks both on every checkout.
+Each cookie set carries a `request_count` (retired at 50) and `expires_at` (TTL 1500 s with ±20% jitter, so a boot burst doesn't synchronously expire). Checkout scans from the head of the warm list, moves every stale entry it meets to the sick set, and returns the first fresh one; the scan is bounded by the list length at call time. A checkout that pops one stale entry and gives up returns nothing under load while fresh cookies sit at the tail -- that failure looks exactly like "Cloudflare blocks everything".
 
 ### Background maintainer
 
-No external cron. Inside gunicorn workers, a gevent greenlet started at boot wakes every `CM_POOL_MAINT_INTERVAL_S=60` and:
+Inside the worker processes, a background task started at boot wakes every 20–60 s and:
 
-1. mints until `LLEN(cm:pool:warm) >= CM_POOL_TARGET_SIZE` (default 10);
+1. mints until `LLEN(pool:warm) >= TARGET_SIZE` (8–10);
 2. runs `gc_sick()` to delete retired entries immediately and sick entries after 1 hour.
 
-Mint operations are serialized across the fleet by `cm:pool:mint_lock` (`SET NX EX 60`), so N workers all seeing an empty pool at boot don't mint N copies in parallel.
+Mint operations are serialized across the fleet by `pool:mint_lock` (`SET NX EX 60`), so N workers all seeing an empty pool at boot don't mint N copies in parallel. Do not hold the lock for longer than one solve.
 
-Cron and batch scripts don't import `app.py`, so they have no greenlet. They call `cm_pool_maintainer.prewarm_pool()` once at startup to synchronously fill the pool before scrapes begin; on a pool miss mid-run they inline-mint via `cm_pool.mint_one()`.
+Cron and batch scripts have no background task. They call `prewarm_pool()` once at startup to synchronously fill the pool before scrapes begin; on a pool miss mid-run they inline-mint via `mint_one()`.
 
 ### Configuration knobs
 
 ```
-CM_POOL_ENABLED=true                  # master kill-switch
-CM_POOL_TARGET_SIZE=10                # warm cookies the maintainer keeps
-CM_POOL_MAX_REQUESTS_PER_COOKIE=50    # retire-on-count
-CM_POOL_COOKIE_TTL_S=1500             # 25 min, with +-20% jitter
-CM_POOL_MAINT_INTERVAL_S=60           # maintainer loop cadence
-CM_POOL_MINT_TIMEOUT_S=60             # hard cap on a single Byparr solve
+POOL_ENABLED=true                 # master kill-switch
+POOL_TARGET_SIZE=8                # warm cookie sets the maintainer keeps
+POOL_MAX_REQUESTS_PER_COOKIE=50   # retire-on-count
+POOL_COOKIE_TTL_S=1500            # 25 min, with ±20% jitter
+POOL_PROXY_SESSTTL_MIN=30         # sticky window per cookie set — at least the cookie TTL
+POOL_MAINT_INTERVAL_S=20          # maintainer loop cadence
+SOLVE_MAX_ATTEMPTS=3              # solver attempts per mint, one fresh exit each
+SOLVE_CLIENT_TIMEOUT_S=90         # above the solver's max_timeout (60)
 ```
-
-The old single-cookie `CM_COOKIE_TTL=1500` knob is still present for legacy code paths but the pool's own TTL is what matters now.
 
 ## Challenge Detection
 
-Check for Cloudflare challenge markers in the response:
+Check for Cloudflare challenge markers in the response body -- a challenge can arrive as an HTTP 200:
 
 ```python
 def is_cloudflare_challenge(html):
@@ -184,92 +244,84 @@ def is_cloudflare_challenge(html):
 
 ## Putting It Together
 
-The production flow (`scraper.cardmarket_session._cm_request`) checks a cookie set out of the pool, retries with proxy-IP rotation on 403, and falls back to a Byparr HTML-direct solve only when retries are exhausted:
+The request flow checks a cookie set out of the pool, sends through that cookie set's sticky proxy with the solver's browser impersonated, retries on 403/429 without penalising the cookie set until the last attempt, and falls back to an HTML-direct solve only on batch paths:
 
 ```python
-from scraper import cm_pool
-from scraper.cardmarket_session import create_cm_session
-from scraper.flaresolverr import solve_challenge
+def fetch(url, *, batch: bool, max_attempts: int):
+    # Pool checkout. On an empty pool, batch paths inline-mint; interactive
+    # paths go bare to preserve their response-time budget.
+    meta = pool.checkout()
+    if meta is None and batch and pool.mint_one():
+        meta = pool.checkout()
 
-def scrape(url, *, cm_cookie_block: bool, cm_solve_on_block: bool,
-           cm_max_attempts: int = 2):
-    # Pool checkout. On empty pool, cron/batch (cm_cookie_block=True)
-    # inline-mints via Byparr; frontend goes bare to preserve the 6s deadline.
-    meta = cm_pool.checkout() if config.CM_POOL_ENABLED else None
-    if meta is None and cm_cookie_block:
-        if cm_pool.mint_one():
-            meta = cm_pool.checkout()
-
-    first_403_handled = False
-    for attempt in range(cm_max_attempts):
-        # A fresh session per attempt = a fresh DataImpulse IP (rotating proxy).
-        sess = create_cm_session(timeout=20)
-        if meta is not None:
-            cm_pool.apply_cookies(sess, meta)  # sets cookies + UA, domain=.cardmarket.com
+    for attempt in range(max_attempts):
+        sess = make_session(meta) if meta else bare_session()
         try:
-            resp = sess.get(url)
+            try:
+                resp = sess.get(url)
+            except NETWORK_ERRORS:
+                # Proxy reset, DNS, TCP timeout: the cookie set is fine.
+                if attempt < max_attempts - 1:
+                    time.sleep(0.5 + random.uniform(-0.1, 0.2))
+                    continue
+                if meta:
+                    pool.return_cookie(meta["cid"], success=True)
+                raise NetworkError()
         finally:
             sess.close()
 
         if resp.status_code == 200:
-            if meta is not None:
-                cm_pool.return_cookie(meta['cid'], success=True)
+            if meta:
+                pool.return_cookie(meta["cid"], success=True)
             return resp.text
-
+        if resp.status_code == 404:
+            if meta:
+                pool.return_cookie(meta["cid"], success=True)
+            return None
         if resp.status_code in (403, 429):
-            if attempt < cm_max_attempts - 1:
-                if not first_403_handled and meta is not None and cm_cookie_block:
-                    # Cron/batch first 403: maybe the cookie is stale.
-                    # Mark it sick, grab a fresh one from the pool.
-                    cm_pool.mark_sick(meta['cid'], 'cf_403_first')
-                    meta = cm_pool.checkout() or (
-                        cm_pool.checkout() if cm_pool.mint_one() else None)
-                    first_403_handled = True
-                # else: keep cookies, just rotate IP via a new session next loop.
-                time.sleep(0.5)
+            if attempt < max_attempts - 1:
+                time.sleep(0.5 + random.uniform(-0.1, 0.2))   # same cookies, same exit, retry
                 continue
-            break  # retries exhausted — fall through to fallback
+            break                                             # exhausted → fall through
+        if resp.status_code >= 500:
+            if attempt < max_attempts - 1:
+                time.sleep(0.5 + random.uniform(-0.1, 0.2))
+                continue
+            if meta:
+                pool.return_cookie(meta["cid"], success=True)  # a 5xx is not the cookie's fault
+            raise BlockedError(f"http_{resp.status_code}")
 
-    # Final attempt failed with 403/429.
-    if meta is not None:
-        cm_pool.mark_sick(meta['cid'], 'cf_403_exhausted')
-
-    # Byparr HTML-direct fallback — cron/batch only, ~10s round-trip.
-    if cm_solve_on_block:
-        html = solve_challenge(url, timeout=35)
+    if meta:
+        pool.mark_sick(meta["cid"], "cf_403_exhausted")
+    if batch:
+        html = solve_challenge(url)
         if html and not is_cloudflare_challenge(html):
             return html
-
-    raise CMBlockedError('cf_403')
+    raise BlockedError("cf_403")
 ```
 
-Two behavior knobs control the cron-vs-frontend split:
+Two behaviours split by caller type:
 
-- **`cm_cookie_block`** — `True` for cron/batch: inline-mint on pool miss, swap cookies on first 403. `False` for frontend: go bare on pool miss, never swap cookies (rotate IP only), so the 6s deadline holds.
-- **`cm_solve_on_block`** — `True` for cron/batch: after retries exhausted, ask Byparr to fetch the URL directly via headless browser. `False` for frontend: raise `CMBlockedError` immediately.
+- **Batch / cron** (`max_attempts=4`): inline-mints on a pool miss, and after retries are exhausted asks the solver to fetch the URL directly through the headless browser.
+- **Interactive** (`max_attempts=2`): goes bare on a pool miss (no inline mint, no solver) so the page's response-time budget holds, and raises immediately when retries are exhausted.
 
-The same pool primitives also guard a body-level challenge (HTTP 200 with a "Just a moment..." page): on detection `_cm_get` does one fresh pool checkout + retry, marks the prior cookie sick if the retry still sees a challenge, then falls back to a Byparr HTML-direct solve. See `scraper.cardmarket_session._cm_get`.
+Neither path marks a cookie set sick on an intermediate 403. Retiring a cookie set on its first 403 was the classic self-inflicted outage: it burns healthy cookie sets, drains the pool and turns a transient block into a serialised re-mint storm behind a 15–35 s solver. With one sticky exit per cookie set, the retry is a plain retry; the exit only changes when the next request checks out another cookie set.
 
-Asymmetry to keep in mind:
+The same primitives guard a body-level challenge (HTTP 200 with a "Just a moment..." page): on detection, do one fresh pool checkout and retry, mark the prior cookie set sick if the retry still sees a challenge, then fall back to the HTML-direct solve on batch paths.
 
-- **Cron / batch** (`cm_cookie_block=True`, `cm_max_attempts=4`): allowed to mark the cookie sick on the first 403, swap to a fresh pool entry, and inline-mint via Byparr when the pool is empty.
-- **Frontend** (`cm_cookie_block=False`, `cm_max_attempts=2`): never marks the cookie sick on intermediate 403s — only rotates the proxy IP via a fresh `create_cm_session()`. The cookie is only marked sick if all retries are exhausted. On a pool miss the frontend goes bare (no inline mint, no Byparr) to preserve the 6s scrape deadline.
+### Network errors vs blocks
 
-There is no separate `trigger_background_solve()` API: background replenishment is owned by the gevent maintainer greenlet (`cm_pool_maintainer.iteration()`), which refills toward `CM_POOL_TARGET_SIZE` every `CM_POOL_MAINT_INTERVAL_S` and GCs sick entries. Workers never block on a Byparr solve except via `mint_one()` on a deliberate cron-path pool miss.
+Raise two distinct exception classes and never collapse them into one "scrape failed" bucket:
 
-### `CMNetworkError` vs `CMBlockedError`
+- **Network error** -- proxy connection reset, DNS failure, TCP timeout. The cookie set is NEVER marked sick on these: the failure has nothing to do with the cookies, and burning the pool on transient proxy hiccups empties it during any minor provider blip.
+- **Blocked** -- Cloudflare returned 403/429 on every attempt, an HTTP 5xx survived retries, or a body-level challenge the solver could not clear. The cookie set is retired.
 
-`cardmarket_session.py` raises two distinct exception classes that callers (and the metrics layer) must NOT collapse into a single "scrape failed" bucket:
-
-- **`CMNetworkError`** (`cardmarket_session.py:92`) — proxy connection reset, DNS failure, TCP timeout. Raised at line 255-256 from inside the request loop. The cookie is NEVER marked sick on these — the failure has nothing to do with the cookie's validity, and burning the pool on transient proxy hiccups would empty it during any minor proxy provider blip.
-- **`CMBlockedError`** (`cardmarket_session.py:87`) — Cloudflare returned 403, an HTTP 5xx that survived retries, or a body-level challenge that Byparr couldn't solve. Raised at lines 325 / 352 / 414 / 454. Cookies are marked sick on these (subject to the `cm_cookie_block` asymmetry above).
-
-Callers that catch one and not the other risk either (a) leaking proxy failures into the cookie-sick count and prematurely draining the pool, or (b) ignoring Cloudflare-driven blocks because they look like network noise. The split is load-bearing — preserve it when adding new error paths.
+Callers that catch one and not the other either leak proxy failures into the sick count and drain the pool prematurely, or ignore Cloudflare-driven blocks because they look like network noise. The split is load-bearing -- preserve it when adding error paths.
 
 ## Results
 
-- **Cookie solve frequency**: ~once per 25 minutes
-- **Per-request latency**: 1-2s (with cached cookies)
-- **Cold start latency**: 15-35s (challenge solve)
-- **Cost**: Byparr is self-hosted and free (~512MB RAM)
-- **No headless browser per request** -- Camoufox only runs for the initial solve
+- **Solve frequency**: one per cookie set, every ~25 minutes; 8 live cookie sets ≈ one solve every 3 minutes fleet-wide
+- **Per-request latency**: ~1 s with pooled cookies
+- **Cold start latency**: 15–35 s (challenge solve), paid by the maintainer, not by callers
+- **Cost**: the solver is self-hosted (2 GB RAM ceiling, ~512 MB typical); proxy spend is the residential per-GB rate on small pages
+- **No headless browser per request** -- the stealth browser only runs for mints

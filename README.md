@@ -4,7 +4,7 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->9<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->10<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
 ## pc
@@ -33,6 +33,10 @@ Search these TILs at https://docs.luca-borruto.com/
 ## mods
 
 * [Magmagat for Mob of the Dead (Plutonium T6)](https://github.com/lborruto/docs/blob/main/mods/magmagat-mob-of-the-dead.md) - 2026-10-30
+
+## side-projects
+
+* [CollectValue: real market prices for trading cards in France](https://github.com/lborruto/docs/blob/main/side-projects/collectvalue.md) - 2026-10-30
 <!-- index ends -->
 
 ---

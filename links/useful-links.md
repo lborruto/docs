@@ -23,6 +23,7 @@ A collection of useful tools, resources, and references.
 ## Streaming
 
 - [Gardak](https://gardak.com/) -- movies and TV show streaming
+- [jackstream](https://github.com/lborruto/jackstream) -- my self-hosted Stremio addon: searches your Jackett and streams torrents via WebTorrent ([write-up](https://docs.luca-borruto.com/addons/jackstream-docker))
 
 ## Bitcoin
 

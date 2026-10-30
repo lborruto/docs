@@ -22,7 +22,7 @@ A collection of useful tools, resources, and references.
 
 ## Streaming
 
-- [Tarbob](https://tarbob.com/) -- movies and TV show streaming
+- [Gardak](https://gardak.com/) -- movies and TV show streaming
 
 ## Bitcoin
 
@@ -37,6 +37,7 @@ A collection of useful tools, resources, and references.
 
 ## Web Scraping
 
+- [FlameProxies](https://flameproxies.com/) -- residential proxies at $0.50/GB
 - [DataImpulse](https://dataimpulse.com/) -- residential proxies at $1/GB, billing on compressed data (actual cost is even lower)
 - [Scrape.do](https://scrape.do/) -- cheapest scraper API I could find, handles anti-bot bypass (Akamai, Cloudflare, AWS WAF)
 

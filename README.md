@@ -4,7 +4,7 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->7<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->9<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
 ## pc
@@ -17,14 +17,22 @@ Search these TILs at https://docs.luca-borruto.com/
 
 ## scraping
 
-* [Proxy Strategies for Web Scraping](https://github.com/lborruto/docs/blob/main/scraping/proxy-strategies.md) - 2026-04-09
 * [Bypassing Cloudflare with curl_cffi and Cookie Management](https://github.com/lborruto/docs/blob/main/scraping/bypassing-cloudflare.md) - 2026-04-09
-* [Bypassing Akamai Bot Manager with curl_cffi](https://github.com/lborruto/docs/blob/main/scraping/bypassing-akamai.md) - 2026-04-09
 * [Bypassing AWS WAF with Proof-of-Work Token Generation](https://github.com/lborruto/docs/blob/main/scraping/bypassing-aws-waf.md) - 2026-04-09
+* [Proxy Strategies for Web Scraping](https://github.com/lborruto/docs/blob/main/scraping/proxy-strategies.md) - 2026-04-09
+* [Bypassing Akamai Bot Manager with curl_cffi](https://github.com/lborruto/docs/blob/main/scraping/bypassing-akamai.md) - 2026-04-09
 
 ## addons
 
 * [jackstream in Docker](https://github.com/lborruto/docs/blob/main/addons/jackstream-docker.md) - 2026-04-22
+
+## smart-home
+
+* [Kelvin: self-hosted control for Cozytouch radiators](https://github.com/lborruto/docs/blob/main/smart-home/kelvin.md) - 2026-10-30
+
+## mods
+
+* [Magmagat for Mob of the Dead (Plutonium T6)](https://github.com/lborruto/docs/blob/main/mods/magmagat-mob-of-the-dead.md) - 2026-10-30
 <!-- index ends -->
 
 ---

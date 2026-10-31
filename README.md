@@ -4,7 +4,7 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->10<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->11<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
 ## pc
@@ -37,6 +37,7 @@ Search these TILs at https://docs.luca-borruto.com/
 ## side-projects
 
 * [CollectValue: real market prices for trading cards in France](https://github.com/lborruto/docs/blob/main/side-projects/collectvalue.md) - 2026-10-30
+* [indexof: a plain file server for the home network](https://github.com/lborruto/docs/blob/main/side-projects/indexof.md) - 2026-10-31
 <!-- index ends -->
 
 ---

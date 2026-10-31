@@ -1,10 +1,10 @@
 # indexof: a plain file server for the home network
 
-Self-hosted file server and browser that looks like nginx's own "Index of /" page, because that is what it is. On top of the listing: a login, search, uploads, zips of whole folders, and a player that opens videos in the browser or in VLC. Two Docker containers, two secrets, and the folders you mount.
+Self-hosted file server for the household: the shared drive for documents, photos, backups and whatever gets passed around at home, reached from any browser. It looks like nginx's own "Index of /" page, because that is what it is. On top of the listing: a login, uploads, rename and delete, search, folder sizes and zips; videos and music play too, in the browser or in VLC. Two Docker containers, two secrets, and the folders you mount.
 
 Source: <https://github.com/lborruto/indexof>
 
-![indexof's listing of a movies folder: nginx's plain Index of / table with a filter box and sort links above it, and [zip], [play] and [vlc] links on each line](https://raw.githubusercontent.com/lborruto/indexof/main/docs/screenshots/listing.webp)
+![indexof's listing of a Documents folder: nginx's plain Index of / table with sizes and dates, [zip], [rename] and [delete] on each line, the search and sort line above, and the upload line with the free space below](https://raw.githubusercontent.com/lborruto/indexof/main/docs/screenshots/listing.webp)
 
 ## Why build this
 
@@ -16,7 +16,7 @@ nginx already serves files and lists folders with `autoindex`. That page is fast
 - Search across the disk, folder sizes, free space.
 - Uploading from the browser, renaming, deleting, in the folders where that is allowed.
 - Downloading a folder as one zip.
-- Playing a film without downloading it first, in the browser when it can, in VLC when it cannot.
+- Opening a video or a song without downloading it first, in the browser when it can, in VLC when it cannot.
 
 indexof adds exactly that list and nothing else. The listing stays nginx's listing.
 
@@ -45,6 +45,7 @@ Browser
 - **Zips are streamed, never stored.** A folder is zipped as it is sent, uncompressed, without hidden files or symbolic links. Nothing lands on the server's disk and there is nothing to clean up.
 - **VLC links are signed, for 12 hours, with their own key.** A `vlc://` link is valid for that one file, for reading only, until it expires. It is signed with `INDEXOF_LINK_SECRET`, not the password, so a shared link never leaks the login.
 - **The helper is on an internal network.** Everything that runs a program (search, sizes, zips, ffprobe, ffmpeg) lives in a second container that only nginx can reach, and every path it receives is checked to be a real file under `/data` before anything runs.
+- **Tested like it is meant to be used.** Every pull request runs lint, a secret scan, a vulnerability scan of both images (Trivy) and an integration test of about 480 checks on generated demo data (odd file names, symbolic links, read-only folders, real media with several audio and subtitle tracks), plus a real browser checking what the page shows. Before 1.0.0, an independent attack on a running copy found no critical, high or medium issue.
 - **Plain, old-school look.** No framework, no build step, no redesign. The page is the autoindex table plus a line of links above it, and it works in any browser.
 
 ## How to run it
@@ -61,7 +62,8 @@ In `compose.yaml`, mount the folders to serve under `/data`, with `:ro` for the 
 
 ```yaml
 volumes:
-  - /srv/movies:/data/movies:ro
+  - /srv/documents:/data/Documents
+  - /srv/photos:/data/Photos:ro
   - /srv/share:/data/share
 ```
 

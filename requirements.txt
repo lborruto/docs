@@ -1,9 +1,9 @@
-sqlite-utils>=3.2
+sqlite-utils>=4.2.1
 beautifulsoup4
-datasette>=0.65.1
-datasette-atom>=0.7
+datasette>=0.65.5
+datasette-atom>=0.9
 datasette-publish-fly
-datasette-template-sql>=1.0.2
+datasette-template-sql>=1.0.3
 datasette-graphql
 datasette-block-robots
 datasette-sitemap>=1.0

@@ -1,6 +1,6 @@
 # mcp-leclerc-drive: filling a Leclerc Drive cart from Claude
 
-An MCP server that lets Claude do the tedious half of the weekly grocery order on E.Leclerc Drive: find the drive, search the shelves, fill the cart. It stops there. No tool validates the cart, books a slot or pays; I check the cart and finish on the site myself. It works through my own Chrome, with a profile of its own that I log into once.
+An MCP server that lets Claude do the tedious half of the weekly grocery order on E.Leclerc Drive: find the drive, search the shelves and the offers, remember the usual products, fill the cart. It stops there. No tool validates the cart, books a slot or pays; I check the cart and finish on the site myself. It works through my own Chrome, with a profile of its own that I log into once.
 
 Source: <https://github.com/lborruto/mcp-leclerc-drive>
 
@@ -48,18 +48,19 @@ Claude Code ── stdio (MCP) ──▶ mcp-leclerc-drive (Node)
 - **Never someone else's Chrome.** The server writes a lock with Chrome's PID, port and DevTools browser id (random per run), and refuses any Chrome on the port that does not match. It refuses to run on the main Chrome, Chromium, Edge or Brave profile on any OS, and works in its own tab.
 - **Never the password or the cookies.** I log in myself in the window; requests run in the page, so the browser attaches its own cookies. Nothing reads, stores or logs one.
 - **Fixed upstream's two issues.** Stores whose host 302s to another shard (the page must be asked where it landed, and URLs built relative to it), and the first call after ~16 idle minutes, when the host redirects to its `-secure` twin, which an in-page fetch cannot follow (re-navigate and retry once).
-- **Tested against a simulated browser.** Most of the 51 tests run the real session code against a fake Chrome whose in-page script is executed in a `node:vm` sandbox with a same-origin-only fetch, plus a simulated cart. An independent review pass found races (two parallel adds losing one, a `set_store` landing mid-request) that now have tests.
-- **Checked on the live site, sparingly.** About thirty requests in total, on my own cart, which ended exactly as it started. That run found three things no fake would have: search results included the cart (every page embeds it), an unknown product id comes back as "0 in cart" rather than an error, and truck relays share their drive's store id.
-- **Released like the rest.** CI on Linux, macOS and Windows, gitleaks over the history, CodeQL, npm audit, actionlint, every action pinned to a commit at least two weeks old. Releases are tarballs with build-provenance attestations, only from tags on `main`, and never on npm (the name there is still upstream's 0.3.0).
+- **Clear when something is off.** No drive chosen, nobody logged in, a drive other than the one the Chrome window is on, a page Leclerc changed: each is said as such, with what to do, instead of an empty result. A `diagnostic` tool gives a report that is safe to paste in an issue.
+- **Tested against a simulated browser.** Most of the 71 tests run the real session code against a fake Chrome whose in-page script is executed in a `node:vm` sandbox with a same-origin-only fetch, plus a simulated cart. An independent review pass found races (two parallel adds losing one, a `set_store` landing mid-request) that now have tests.
+- **Checked on the live site, sparingly.** A few dozen requests in total, on my own cart, which ended exactly as it started. Those runs found what no fake would have: search results included the cart (every page embeds it), an unknown product id comes back as "0 in cart" rather than an error, truck relays share their drive's store id, and a search with no result still returns six unrelated suggestions.
+- **Released like the rest.** CI on Linux, macOS and Windows, gitleaks over the history, CodeQL, npm audit, actionlint, every action pinned to a commit at least two weeks old. Releases are a tarball and a one-file Claude Desktop bundle, both with build-provenance attestations, only from tags on `main`, and never on npm (the name there is still upstream's 0.3.0).
 
 ## How to run it
 
-You need Node.js 22+, Google Chrome and a Leclerc Drive account.
+You need Google Chrome and a Leclerc Drive account. In Claude Desktop, open the `.mcpb` file of the [latest release](https://github.com/lborruto/mcp-leclerc-drive/releases/latest): no terminal needed. In Claude Code (Node.js 22+):
 
 ```bash
 claude mcp add --scope user leclerc-drive -- npx -y \
-  --package=https://github.com/lborruto/mcp-leclerc-drive/releases/download/v0.4.0/mcp-leclerc-drive-0.4.0.tgz \
+  --package=https://github.com/lborruto/mcp-leclerc-drive/releases/download/v0.5.0/mcp-leclerc-drive-0.5.0.tgz \
   mcp-leclerc-drive
 ```
 
-Ask Claude for the drives around your postcode: a Chrome window opens, log into Leclerc Drive there and choose your drive, then `set_store` with the id it showed. From then on, « ajoute 2 packs de lait et du beurre » fills the cart, and you check out on the site. The [README](https://github.com/lborruto/mcp-leclerc-drive#get-started) has the clone-based install, Claude Desktop's configuration and the settings.
+Ask Claude for the drives around your postcode: a Chrome window opens, log into Leclerc Drive there and choose your drive, then `set_store` with the id it showed. From then on, « ajoute 2 packs de lait et du beurre » fills the cart, and you check out on the site. The [README](https://github.com/lborruto/mcp-leclerc-drive#get-started) has the clone-based install, other clients' configuration and the settings; there is a [French one](https://github.com/lborruto/mcp-leclerc-drive/blob/main/docs/README.fr.md) too.

@@ -4,7 +4,7 @@ A collection of concise write-ups on small things I learn day to day. Powered by
 
 Search these TILs at https://docs.luca-borruto.com/
 
-<!-- count starts -->12<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
+<!-- count starts -->13<!-- count ends --> TILs so far. <a href="https://docs.luca-borruto.com/tils/feed.atom">Atom feed here</a>.
 
 <!-- index starts -->
 ## pc
@@ -39,6 +39,7 @@ Search these TILs at https://docs.luca-borruto.com/
 * [CollectValue: real market prices for trading cards in France](https://github.com/lborruto/docs/blob/main/side-projects/collectvalue.md) - 2026-10-30
 * [indexof: a plain file server for the home network](https://github.com/lborruto/docs/blob/main/side-projects/indexof.md) - 2026-10-31
 * [mcp-leclerc-drive: filling a Leclerc Drive cart from Claude](https://github.com/lborruto/docs/blob/main/side-projects/mcp-leclerc-drive.md) - 2026-11-01
+* [sims2-ds-hd: The Sims 2 DS played like a console game](https://github.com/lborruto/docs/blob/main/side-projects/sims2-ds-hd.md) - 2026-11-13
 <!-- index ends -->
 
 ---
